@@ -1,0 +1,8 @@
+# Git属性配置
+# 自动处理行尾符
+* text=auto
+
+# 为config.py配置clean filter
+# 在git add时自动清理敏感信息
+config.py filter=clean-config
+
