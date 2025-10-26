@@ -1,7 +1,7 @@
 # Git Config（Git配置文件不上传）
 .gitignore
 .gitattributes
-
+.gitignore.example
 # Python
 __pycache__/
 *.py[cod]
