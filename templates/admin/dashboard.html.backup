@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据看板 - 客服系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/dashboard.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 页面头部 -->
+        <div class="page-header">
+            <div class="header-left">
+                <h1><i class="fas fa-chart-line"></i> 数据看板</h1>
+                <p class="subtitle">实时监控系统数据，洞察业务趋势</p>
+            </div>
+            <div class="header-right">
+                <select id="timeRange" class="time-selector" onchange="changeTimeRange()">
+                    <option value="7">最近7天</option>
+                    <option value="30">最近30天</option>
+                    <option value="90">最近90天</option>
+                </select>
+                <button class="btn-primary" onclick="refreshData()">
+                    <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+                <button class="btn-secondary" onclick="window.location.href='/admin'">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
+            </div>
+        </div>
+
+        <!-- 核心指标 -->
+        <div class="metrics-grid">
+            <div class="metric-card" style="border-left-color: #667eea;">
+                <div class="metric-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="totalVisitors">0</div>
+                    <div class="metric-label">总访客数</div>
+                    <div class="metric-change positive" id="visitorsChange">
+                        <i class="fas fa-arrow-up"></i> +0%
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card" style="border-left-color: #f093fb;">
+                <div class="metric-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="totalSessions">0</div>
+                    <div class="metric-label">总会话数</div>
+                    <div class="metric-change positive" id="sessionsChange">
+                        <i class="fas fa-arrow-up"></i> +0%
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card" style="border-left-color: #4facfe;">
+                <div class="metric-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <i class="fas fa-comment-dots"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="totalMessages">0</div>
+                    <div class="metric-label">总消息数</div>
+                    <div class="metric-change positive" id="messagesChange">
+                        <i class="fas fa-arrow-up"></i> +0%
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card" style="border-left-color: #43e97b;">
+                <div class="metric-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <i class="fas fa-smile"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="satisfaction">0%</div>
+                    <div class="metric-label">满意度</div>
+                    <div class="metric-change positive" id="satisfactionChange">
+                        <i class="fas fa-arrow-up"></i> +0%
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card" style="border-left-color: #fa709a;">
+                <div class="metric-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                    <i class="fas fa-user-tie"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="onlineServices">0/0</div>
+                    <div class="metric-label">在线客服</div>
+                    <div class="metric-change" id="servicesStatus">
+                        <i class="fas fa-circle"></i> 正常
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card" style="border-left-color: #ff6b6b;">
+                <div class="metric-icon" style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" id="avgResponseTime">0s</div>
+                    <div class="metric-label">平均响应时间</div>
+                    <div class="metric-change positive" id="responseChange">
+                        <i class="fas fa-arrow-down"></i> -0%
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表区域 -->
+        <div class="charts-grid">
+            <!-- 趋势图 -->
+            <div class="chart-card large">
+                <div class="chart-header">
+                    <h3><i class="fas fa-chart-line"></i> 数据趋势</h3>
+                    <div class="chart-legend">
+                        <span class="legend-item"><span class="legend-dot" style="background: #667eea;"></span> 访客</span>
+                        <span class="legend-item"><span class="legend-dot" style="background: #f093fb;"></span> 会话</span>
+                        <span class="legend-item"><span class="legend-dot" style="background: #4facfe;"></span> 消息</span>
+                    </div>
+                </div>
+                <div class="chart-body">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 客服绩效 -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-award"></i> 客服绩效 TOP5</h3>
+                </div>
+                <div class="chart-body">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 评分分布 -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-star"></i> 评分分布</h3>
+                </div>
+                <div class="chart-body">
+                    <canvas id="ratingChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 访问来源 -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-globe"></i> 访问来源</h3>
+                </div>
+                <div class="chart-body">
+                    <canvas id="sourceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 设备分布 -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-mobile-alt"></i> 设备分布</h3>
+                </div>
+                <div class="chart-body">
+                    <canvas id="deviceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实时数据流 -->
+        <div class="realtime-section">
+            <div class="section-header">
+                <h3><i class="fas fa-bolt"></i> 实时动态</h3>
+                <span class="live-indicator">
+                    <span class="live-dot"></span> LIVE
+                </span>
+            </div>
+            <div class="realtime-list" id="realtimeList">
+                <!-- 动态加载 -->
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/admin/dashboard.js') }}"></script>
+</body>
+</html>
+

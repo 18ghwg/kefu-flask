@@ -1,0 +1,204 @@
+/**
+ * 主题切换器组件样式
+ */
+
+@import 'theme-variables.css';
+
+
+/* 主题切换器容器 */
+.theme-switcher {
+    position: relative;
+}
+
+.theme-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: var(--bg-surface, #ffffff);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.theme-btn:hover {
+    background: var(--bg-hover, #f1f5f9);
+    transform: scale(1.05);
+}
+
+/* 主题面板 */
+.theme-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: var(--bg-surface, #ffffff);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    padding: 16px;
+    min-width: 280px;
+    z-index: 1000;
+    display: none;
+    border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.theme-panel.show {
+    display: block;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.theme-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.theme-panel-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary, #0f172a);
+}
+
+.theme-close {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-muted, #64748b);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.theme-close:hover {
+    background: var(--bg-hover, #f1f5f9);
+    color: var(--text-primary, #0f172a);
+}
+
+/* 主题选项 */
+.theme-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.theme-option {
+    padding: 12px;
+    border: 2px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    background: var(--bg-surface, #ffffff);
+}
+
+.theme-option:hover {
+    border-color: var(--primary-color, #059669);
+    background: var(--primary-lightest, #d1fae5);
+    transform: translateY(-2px);
+}
+
+.theme-option.active {
+    border-color: var(--primary-color, #059669);
+    background: var(--primary-lightest, #d1fae5);
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.2);
+}
+
+.theme-option-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.theme-option-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary, #0f172a);
+}
+
+.theme-option-color {
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    margin-top: 6px;
+    transition: all 0.2s ease;
+}
+
+/* 主题颜色预览 */
+.theme-option[data-theme="blue"] .theme-option-color {
+    background: var(--primary-color);
+}
+
+.theme-option[data-theme="green"] .theme-option-color {
+    background: #059669;
+}
+
+.theme-option[data-theme="purple"] .theme-option-color {
+    background: #7c3aed;
+}
+
+.theme-option[data-theme="orange"] .theme-option-color {
+    background: #ea580c;
+}
+
+.theme-option[data-theme="pink"] .theme-option-color {
+    background: #db2777;
+}
+
+.theme-option[data-theme="cyan"] .theme-option-color {
+    background: #0891b2;
+}
+
+.theme-option[data-theme="red"] .theme-option-color {
+    background: #dc2626;
+}
+
+.theme-option[data-theme="indigo"] .theme-option-color {
+    background: #4f46e5;
+}
+
+/* 响应式 */
+@media (max-width: 480px) {
+    .theme-panel {
+        right: -10px;
+        min-width: 260px;
+    }
+    
+    .theme-options {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+    
+    .theme-option {
+        padding: 10px 8px;
+    }
+    
+    .theme-option-icon {
+        font-size: 20px;
+    }
+    
+    .theme-option-name {
+        font-size: 11px;
+    }
+}
+

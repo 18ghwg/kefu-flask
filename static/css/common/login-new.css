@@ -1,0 +1,574 @@
+/**
+ * 登录页面 - 现代企业级设计
+ * 专业、简洁、高效
+ */
+
+@import '../theme-variables-green.css';
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-family);
+    background: var(--gray-50);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.login-container {
+    display: flex;
+    max-width: 1100px;
+    width: 100%;
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+/* 左侧品牌区域 - 简洁现代 */
+.login-left {
+    flex: 1;
+    padding: 60px;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+    color: var(--text-white);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+}
+
+/* 添加几何图案装饰 */
+.login-left::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+}
+
+.login-left::after {
+    content: '';
+    position: absolute;
+    bottom: -30px;
+    left: -30px;
+    width: 150px;
+    height: 150px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-xl);
+    transform: rotate(45deg);
+}
+
+.login-left > * {
+    position: relative;
+    z-index: 1;
+}
+
+.login-left h2 {
+    font-size: 36px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+}
+
+.login-left > p {
+    font-size: 16px;
+    margin-bottom: 12px;
+    opacity: 0.95;
+    line-height: 1.6;
+}
+
+.features-list {
+    list-style: none;
+    margin-top: 32px;
+}
+
+.features-list li {
+    padding: 14px 0;
+    font-size: 15px;
+    opacity: 0.9;
+    position: relative;
+    padding-left: 32px;
+    display: flex;
+    align-items: center;
+}
+
+.features-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    font-weight: bold;
+    color: var(--success-color);
+    background: rgba(255, 255, 255, 0.2);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+/* 右侧登录表单区域 */
+.login-right {
+    flex: 1;
+    padding: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: var(--bg-surface);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.login-header h1 {
+    font-size: 28px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.login-header p {
+    color: var(--text-secondary);
+    font-size: 15px;
+}
+
+/* 提示信息 */
+.alert {
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 24px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.alert-error {
+    background: var(--error-light);
+    color: var(--error-color);
+    border-left: 3px solid var(--error-color);
+}
+
+.alert-success {
+    background: var(--success-light);
+    color: var(--success-color);
+    border-left: 3px solid var(--success-color);
+}
+
+/* 表单 */
+.form-group {
+    margin-bottom: 24px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.form-group label i {
+    margin-right: 6px;
+    color: var(--primary-color);
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"] {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    transition: var(--transition-base);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-lightest);
+}
+
+.form-group input:hover {
+    border-color: var(--border-color-dark);
+}
+
+/* 验证码弹窗 */
+.captcha-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.captcha-modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.captcha-modal-content {
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    max-width: 420px;
+    width: 90%;
+}
+
+.captcha-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.captcha-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.captcha-modal-header h3 i {
+    color: var(--primary-color);
+    margin-right: 8px;
+}
+
+.captcha-modal-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    transition: var(--transition-base);
+}
+
+.captcha-modal-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.captcha-modal-body {
+    padding: 24px;
+}
+
+.captcha-hint {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin: 0 0 20px 0;
+}
+
+/* 拼图画布容器 */
+.captcha-canvas-container {
+    position: relative;
+    width: 300px;
+    height: 150px;
+    margin: 0 auto 15px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+/* Canvas元素样式 */
+.captcha-bg-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 1;
+}
+
+.captcha-puzzle-canvas {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    display: block;
+    z-index: 2;
+    /* 位置由JavaScript动态设置 */
+}
+
+/* 滑动轨道 - 现代扁平设计 */
+.captcha-track {
+    position: relative;
+    width: 100%;
+    height: 50px;
+    background: var(--gray-100);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid var(--border-color);
+}
+
+.captcha-progress {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0;
+    background: var(--primary-lightest);
+    transition: var(--transition-base);
+}
+
+.captcha-slider {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50px;
+    height: 50px;
+    background: var(--primary-color);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 18px;
+    cursor: grab;
+    transition: var(--transition-base);
+    z-index: 2;
+}
+
+.captcha-slider:active {
+    cursor: grabbing;
+}
+
+.captcha-slider.success {
+    background: var(--success-color);
+}
+
+.captcha-slider.failed {
+    background: var(--error-color);
+}
+
+.captcha-text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    pointer-events: none;
+    z-index: 1;
+    font-weight: 500;
+}
+
+.captcha-status {
+    margin-top: 8px;
+    font-size: 13px;
+    text-align: center;
+    min-height: 20px;
+}
+
+.captcha-status.success {
+    color: var(--success-color);
+}
+
+.captcha-status.error {
+    color: var(--error-color);
+}
+
+/* 表单选项 */
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.remember-me input[type="checkbox"] {
+    margin-right: 6px;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.forgot-password {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+    transition: var(--transition-base);
+    font-weight: 500;
+}
+
+.forgot-password:hover {
+    color: var(--primary-hover);
+}
+
+/* 登录按钮 - 现代扁平风格 */
+.login-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.login-btn:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.login-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.login-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.login-btn i {
+    margin-right: 8px;
+}
+
+/* 验证码操作按钮 */
+.captcha-actions {
+    text-align: center;
+    margin-top: 15px;
+}
+
+.captcha-refresh-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition-base);
+    font-weight: 500;
+}
+
+.captcha-refresh-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--primary-lightest);
+}
+
+.captcha-refresh-btn i {
+    margin-right: 6px;
+}
+
+/* 返回首页 */
+.back-home {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.back-home a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+    transition: var(--transition-base);
+}
+
+.back-home a:hover {
+    color: var(--primary-color);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    body {
+        padding: 0;
+    }
+
+    .login-container {
+        flex-direction: column;
+        border-radius: 0;
+        min-height: 100vh;
+    }
+
+    .login-left {
+        padding: 40px 30px;
+        order: 2;
+    }
+
+    .login-left h2 {
+        font-size: 28px;
+    }
+
+    .features-list {
+        margin-top: 24px;
+    }
+
+    .login-right {
+        padding: 40px 30px;
+        order: 1;
+    }
+
+    .login-header h1 {
+        font-size: 24px;
+    }
+
+    .form-options {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-left {
+        padding: 30px 20px;
+    }
+
+    .login-right {
+        padding: 30px 20px;
+    }
+
+    .captcha-modal-content {
+        width: 95%;
+        max-width: 360px;
+    }
+
+    .captcha-canvas-container {
+        width: 100%;
+        max-width: 300px;
+    }
+}
+

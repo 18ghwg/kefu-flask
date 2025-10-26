@@ -1,0 +1,139 @@
+/**
+ * 错误页面样式 - 现代企业级设计
+ * 适用于 400, 404, 500 错误页面
+ */
+
+@import '../theme-variables-green.css';
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-family);
+    background: var(--gray-50);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.error-container, .error-box {
+    background: var(--bg-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    max-width: 520px;
+    width: 100%;
+    padding: 48px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+
+/* 错误代码显示 */
+.error-code {
+    font-size: 96px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 16px;
+    line-height: 1;
+    letter-spacing: -2px;
+}
+
+/* 错误图标 */
+.error-icon {
+    font-size: 64px;
+    margin-bottom: 24px;
+    opacity: 0.8;
+}
+
+/* 标题样式 */
+.error-title, h1, h2 {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+h1 {
+    font-size: 96px;
+    color: var(--primary-color);
+    margin-bottom: 16px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+h1.error-500 {
+    font-size: 32px;
+    color: var(--error-color);
+}
+
+h2 {
+    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
+/* 描述文字 */
+.error-description, p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 32px;
+}
+
+p {
+    color: var(--text-secondary);
+}
+
+/* 返回按钮 */
+.btn, a {
+    display: inline-block;
+    padding: 12px 28px;
+    background: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    transition: var(--transition-base);
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+}
+
+a {
+    background: var(--primary-color);
+}
+
+.btn:hover, a:hover {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+/* 响应式设计 */
+@media (max-width: 600px) {
+    .error-container, .error-box {
+        padding: 40px 24px;
+    }
+    
+    .error-code {
+        font-size: 72px;
+    }
+    
+    h1 {
+        font-size: 72px;
+    }
+    
+    h2 {
+        font-size: 20px;
+    }
+    
+    .error-description, p {
+        font-size: 15px;
+    }
+}
+

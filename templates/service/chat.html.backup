@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客服工作台 - 聊天</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f7fa;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 320px;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .sidebar-header h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .stats {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .stats span {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .search-box {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .visitor-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .visitor-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: background 0.2s;
+        }
+
+        .visitor-item:hover {
+            background: #f9fafb;
+        }
+
+        .visitor-item.active {
+            background: #eff6ff;
+            border-left: 3px solid #667eea;
+        }
+
+        .visitor-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .visitor-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .visitor-name {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .visitor-last-msg {
+            font-size: 13px;
+            color: #6b7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .unread-badge {
+            background: #ef4444;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* 聊天区域 */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-visitor-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-visitor-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        .chat-visitor-details h3 {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .chat-visitor-details p {
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #f9fafb;
+            border-color: #667eea;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message.service {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .message.service .message-avatar {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .message-content {
+            max-width: 60%;
+        }
+
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            word-wrap: break-word;
+        }
+
+        .message.service .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 10px 20px;
+            background: #fef3c7;
+            border-left: 3px solid #f59e0b;
+            font-size: 13px;
+            color: #92400e;
+        }
+
+        .typing-indicator.show {
+            display: block;
+        }
+
+        .quick-replies {
+            padding: 15px 20px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .quick-reply-btn {
+            padding: 6px 12px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .quick-reply-btn:hover {
+            background: #f9fafb;
+            border-color: #667eea;
+        }
+
+        .chat-input {
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+
+        .input-toolbar {
+            padding: 10px 20px;
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .toolbar-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .input-wrapper {
+            display: flex;
+            padding: 15px 20px;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            min-height: 40px;
+            max-height: 120px;
+        }
+
+        #sendBtn {
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        #sendBtn:hover {
+            transform: translateY(-2px);
+        }
+
+        #sendBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #9ca3af;
+        }
+
+        .empty-state h3 {
+            margin-top: 16px;
+            font-size: 18px;
+        }
+
+        .empty-state p {
+            margin-top: 8px;
+            font-size: 14px;
+        }
+
+        .system-message {
+            text-align: center;
+            padding: 10px;
+            margin: 20px;
+            background: #eff6ff;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 侧边栏 - 访客列表 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>💬 会话列表</h2>
+                <div class="stats">
+                    在线访客: <span id="onlineCount">0</span> | 
+                    待处理: <span id="pendingCount">0</span>
+                </div>
+            </div>
+
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 搜索访客..." id="searchInput">
+            </div>
+
+            <div class="visitor-list" id="visitorList">
+                <div class="empty-state">
+                    <div style="font-size: 48px;">👥</div>
+                    <h3>暂无访客</h3>
+                    <p>等待访客接入...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主聊天区域 -->
+        <div class="chat-area">
+            <div id="chatContainer" class="empty-state" style="height: 100%;">
+                <div style="font-size: 64px;">💬</div>
+                <h3>选择一个访客开始聊天</h3>
+                <p>从左侧访客列表选择要沟通的访客</p>
+            </div>
+
+            <!-- 聊天界面（动态显示） -->
+            <div id="chatInterface" style="display: none; height: 100%; flex-direction: column;">
+                <div class="chat-header">
+                    <div class="chat-visitor-info">
+                        <div class="chat-visitor-avatar" id="currentVisitorAvatar">👤</div>
+                        <div class="chat-visitor-details">
+                            <h3 id="currentVisitorName">访客</h3>
+                            <p id="currentVisitorInfo">来源: 网站首页</p>
+                        </div>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="action-btn" onclick="transferChat()">🔄 转接</button>
+                        <button class="action-btn" onclick="endChat()">✓ 结束</button>
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <!-- 消息动态加载 -->
+                </div>
+
+                <div class="typing-indicator" id="typingIndicator">
+                    访客正在输入...
+                </div>
+
+                <div class="quick-replies">
+                    <button class="quick-reply-btn" onclick="sendQuickReply('您好，我是客服，很高兴为您服务！')">👋 欢迎语</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('请稍等，我帮您查询一下')">⏱️ 稍等</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('感谢您的咨询，还有其他问题吗？')">💯 感谢</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('很抱歉给您带来不便')">😅 抱歉</button>
+                </div>
+
+                <div class="chat-input">
+                    <div class="input-toolbar">
+                        <button class="toolbar-btn" title="表情">😊</button>
+                        <button class="toolbar-btn" title="图片">📷</button>
+                        <button class="toolbar-btn" title="文件">📎</button>
+                        <button class="toolbar-btn" title="知识库">📚</button>
+                    </div>
+                    <div class="input-wrapper">
+                        <textarea id="messageInput" placeholder="输入消息..." rows="1"></textarea>
+                        <button id="sendBtn">发送</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.IO 客户端 -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    
+    <script>
+        // 客服信息（从Flask模板注入）
+        const serviceId = '{{ current_user.service_id }}';
+        const serviceName = '{{ current_user.nick_name }}';
+        let socket = null;
+        let currentVisitorId = null;
+        let visitors = {}; // 存储访客信息
+        let typingTimeout = null;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initSocket();
+            initInput();
+        });
+
+        // 初始化Socket.IO连接
+        function initSocket() {
+            socket = io({
+                transports: ['websocket', 'polling']
+            });
+
+            // 连接成功
+            socket.on('connect', function() {
+                console.log('Socket connected:', socket.id);
+                
+                // 客服加入
+                socket.emit('service_join', {
+                    service_id: serviceId,
+                    service_name: serviceName
+                });
+            });
+
+            // 加入成功
+            socket.on('join_success', function(data) {
+                console.log('Join success:', data);
+            });
+
+            // 新访客上线
+            socket.on('new_visitor', function(data) {
+                console.log('New visitor:', data);
+                addVisitorToList(data);
+                updateStats();
+            });
+
+            // 接收消息
+            socket.on('receive_message', function(data) {
+                console.log('Received message:', data);
+                
+                // 如果是当前访客的消息，添加到聊天界面
+                if (data.from_id == currentVisitorId) {
+                    addMessage(data.content, 'visitor', data.timestamp);
+                } else {
+                    // 其他访客的消息，更新未读数
+                    updateVisitorUnread(data.from_id);
+                }
+            });
+
+            // 访客正在输入
+            socket.on('user_typing', function(data) {
+                if (data.from_id == currentVisitorId) {
+                    const typingIndicator = document.getElementById('typingIndicator');
+                    if (data.is_typing) {
+                        typingIndicator.classList.add('show');
+                    } else {
+                        typingIndicator.classList.remove('show');
+                    }
+                }
+            });
+
+            // 访客离线
+            socket.on('user_offline', function(data) {
+                if (data.user_type === 'visitor') {
+                    removeVisitorFromList(data.user_id);
+                    updateStats();
+                }
+            });
+
+            // 获取在线用户
+            socket.emit('get_online_users');
+            socket.on('online_users_list', function(data) {
+                console.log('Online users:', data);
+                // 显示在线访客
+                if (data.visitors) {
+                    data.visitors.forEach(visitor => {
+                        addVisitorToList(visitor);
+                    });
+                }
+                updateStats();
+            });
+        }
+
+        // 初始化输入框
+        function initInput() {
+            const messageInput = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+
+            // 自动调整高度
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+                
+                // 发送输入状态
+                if (currentVisitorId) {
+                    clearTimeout(typingTimeout);
+                    
+                    socket.emit('typing', {
+                        from_id: serviceId,
+                        from_type: 'service',
+                        from_name: serviceName,
+                        to_id: currentVisitorId,
+                        to_type: 'visitor',
+                        is_typing: true
+                    });
+
+                    typingTimeout = setTimeout(function() {
+                        socket.emit('typing', {
+                            from_id: serviceId,
+                            from_type: 'service',
+                            to_id: currentVisitorId,
+                            to_type: 'visitor',
+                            is_typing: false
+                        });
+                    }, 1000);
+                }
+            });
+
+            // 回车发送（Shift+Enter换行）
+            messageInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // 点击发送
+            sendBtn.addEventListener('click', sendMessage);
+
+            // 搜索访客
+            document.getElementById('searchInput').addEventListener('input', function(e) {
+                const keyword = e.target.value.toLowerCase();
+                const items = document.querySelectorAll('.visitor-item');
+                items.forEach(item => {
+                    const name = item.dataset.name.toLowerCase();
+                    item.style.display = name.includes(keyword) ? 'flex' : 'none';
+                });
+            });
+        }
+
+        // 添加访客到列表
+        function addVisitorToList(visitor) {
+            const visitorId = visitor.visitor_id;
+            
+            // 检查是否已存在
+            if (document.getElementById('visitor_' + visitorId)) {
+                return;
+            }
+
+            // 移除空状态
+            const emptyState = document.querySelector('.visitor-list .empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            visitors[visitorId] = visitor;
+
+            const visitorEl = document.createElement('div');
+            visitorEl.className = 'visitor-item';
+            visitorEl.id = 'visitor_' + visitorId;
+            visitorEl.dataset.name = visitor.visitor_name;
+            visitorEl.onclick = function() { selectVisitor(visitorId); };
+            visitorEl.innerHTML = `
+                <div class="visitor-avatar">${visitor.visitor_name.charAt(0).toUpperCase()}</div>
+                <div class="visitor-info">
+                    <div class="visitor-name">${visitor.visitor_name}</div>
+                    <div class="visitor-last-msg">等待接入...</div>
+                </div>
+                <span class="unread-badge" style="display: none;">0</span>
+            `;
+
+            document.getElementById('visitorList').appendChild(visitorEl);
+        }
+
+        // 选择访客
+        function selectVisitor(visitorId) {
+            currentVisitorId = visitorId;
+            const visitor = visitors[visitorId];
+
+            // 更新活动状态
+            document.querySelectorAll('.visitor-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            document.getElementById('visitor_' + visitorId).classList.add('active');
+
+            // 清除未读
+            const unreadBadge = document.querySelector('#visitor_' + visitorId + ' .unread-badge');
+            if (unreadBadge) {
+                unreadBadge.style.display = 'none';
+                unreadBadge.textContent = '0';
+            }
+
+            // 显示聊天界面
+            document.getElementById('chatContainer').style.display = 'none';
+            document.getElementById('chatInterface').style.display = 'flex';
+
+            // 更新访客信息
+            document.getElementById('currentVisitorName').textContent = visitor.visitor_name;
+            document.getElementById('currentVisitorAvatar').textContent = visitor.visitor_name.charAt(0).toUpperCase();
+            document.getElementById('currentVisitorInfo').textContent = '访客ID: ' + visitorId;
+
+            // 清空聊天记录
+            document.getElementById('chatMessages').innerHTML = '';
+            
+            // 加载历史消息（如果有）
+            loadChatHistory(visitorId);
+        }
+
+        // 加载聊天历史
+        function loadChatHistory(visitorId) {
+            // TODO: 从服务器加载历史消息
+            addSystemMessage('会话开始');
+        }
+
+        // 发送消息
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+
+            if (!content || !currentVisitorId) return;
+
+            if (!socket || !socket.connected) {
+                alert('未连接到服务器');
+                return;
+            }
+
+            // 添加到界面
+            addMessage(content, 'service', new Date());
+
+            // 发送到服务器
+            socket.emit('send_message', {
+                from_id: serviceId,
+                from_type: 'service',
+                from_name: serviceName,
+                to_id: currentVisitorId,
+                to_type: 'visitor',
+                content: content,
+                msg_type: 'text',
+                timestamp: new Date().toISOString()
+            });
+
+            // 清空输入框
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+        }
+
+        // 快捷回复
+        function sendQuickReply(content) {
+            if (!currentVisitorId) {
+                alert('请先选择一个访客');
+                return;
+            }
+            document.getElementById('messageInput').value = content;
+            sendMessage();
+        }
+
+        // 添加消息到聊天界面
+        function addMessage(content, type, timestamp) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message ' + type;
+            
+            const time = formatTime(timestamp);
+            const avatar = type === 'service' ? '👨‍💼' : '👤';
+            
+            messageEl.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-bubble">${content}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+
+            messagesContainer.appendChild(messageEl);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // 添加系统消息
+        function addSystemMessage(content) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageEl = document.createElement('div');
+            messageEl.className = 'system-message';
+            messageEl.textContent = content;
+            messagesContainer.appendChild(messageEl);
+        }
+
+        // 更新访客未读数
+        function updateVisitorUnread(visitorId) {
+            const unreadBadge = document.querySelector('#visitor_' + visitorId + ' .unread-badge');
+            if (unreadBadge) {
+                let count = parseInt(unreadBadge.textContent) || 0;
+                count++;
+                unreadBadge.textContent = count;
+                unreadBadge.style.display = 'block';
+            }
+        }
+
+        // 移除访客
+        function removeVisitorFromList(visitorId) {
+            const el = document.getElementById('visitor_' + visitorId);
+            if (el) {
+                el.remove();
+            }
+            delete visitors[visitorId];
+
+            // 如果是当前访客，关闭聊天界面
+            if (currentVisitorId == visitorId) {
+                currentVisitorId = null;
+                document.getElementById('chatInterface').style.display = 'none';
+                document.getElementById('chatContainer').style.display = 'flex';
+            }
+
+            // 如果没有访客了，显示空状态
+            if (Object.keys(visitors).length === 0) {
+                document.getElementById('visitorList').innerHTML = `
+                    <div class="empty-state">
+                        <div style="font-size: 48px;">👥</div>
+                        <h3>暂无访客</h3>
+                        <p>等待访客接入...</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 更新统计
+        function updateStats() {
+            const onlineCount = Object.keys(visitors).length;
+            document.getElementById('onlineCount').textContent = onlineCount;
+            document.getElementById('pendingCount').textContent = onlineCount;
+        }
+
+        // 转接会话
+        function transferChat() {
+            if (!currentVisitorId) {
+                alert('请先选择一个访客');
+                return;
+            }
+            
+            // 获取其他在线客服列表
+            fetch('/api/service/list?state=online')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 0 && data.data.length > 0) {
+                        // 过滤掉当前客服
+                        const otherServices = data.data.filter(s => s.service_id != serviceId);
+                        
+                        if (otherServices.length === 0) {
+                            alert('没有其他在线客服可以转接');
+                            return;
+                        }
+                        
+                        // 显示选择对话框
+                        const serviceNames = otherServices.map((s, i) => `${i + 1}. ${s.nick_name}`).join('\n');
+                        const choice = prompt(`选择要转接的客服（输入序号）:\n${serviceNames}`);
+                        
+                        if (choice) {
+                            const index = parseInt(choice) - 1;
+                            if (index >= 0 && index < otherServices.length) {
+                                const targetService = otherServices[index];
+                                performTransfer(targetService.service_id, targetService.nick_name);
+                            } else {
+                                alert('无效的选择');
+                            }
+                        }
+                    } else {
+                        alert('没有其他在线客服可以转接');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取客服列表失败:', error);
+                    alert('转接失败，请重试');
+                });
+        }
+
+        // 执行转接
+        function performTransfer(toServiceId, toServiceName) {
+            fetch('/api/queue/transfer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    visitor_id: currentVisitorId,
+                    to_service_id: toServiceId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 0) {
+                    // 发送系统消息通知访客
+                    addSystemMessage(`会话已转接给 ${toServiceName}`);
+                    
+                    // 通知新客服
+                    if (socket && socket.connected) {
+                        socket.emit('transfer_notification', {
+                            from_service_id: serviceId,
+                            to_service_id: toServiceId,
+                            visitor_id: currentVisitorId
+                        });
+                    }
+                    
+                    // 移除访客
+                    removeVisitorFromList(currentVisitorId);
+                    alert('转接成功');
+                } else {
+                    alert('转接失败: ' + data.msg);
+                }
+            })
+            .catch(error => {
+                console.error('转接失败:', error);
+                alert('转接失败，请重试');
+            });
+        }
+
+        // 结束会话
+        function endChat() {
+            if (!currentVisitorId) {
+                alert('请先选择一个访客');
+                return;
+            }
+            
+            if (!confirm('确定要结束此会话吗？')) {
+                return;
+            }
+            
+            fetch('/api/queue/close', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    visitor_id: currentVisitorId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 0) {
+                    // 发送系统消息
+                    addSystemMessage('会话已结束');
+                    
+                    // 通知访客
+                    if (socket && socket.connected) {
+                        socket.emit('session_closed', {
+                            visitor_id: currentVisitorId,
+                            service_id: serviceId
+                        });
+                    }
+                    
+                    // 移除访客
+                    removeVisitorFromList(currentVisitorId);
+                    alert('会话已结束');
+                } else {
+                    alert('结束会话失败: ' + data.msg);
+                }
+            })
+            .catch(error => {
+                console.error('结束会话失败:', error);
+                alert('结束会话失败，请重试');
+            });
+        }
+
+        // 格式化时间
+        function formatTime(date) {
+            if (!date) return '';
+            const d = new Date(date);
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+    </script>
+</body>
+</html>

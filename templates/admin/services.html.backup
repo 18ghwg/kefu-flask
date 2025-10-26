@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客服管理 - 客服系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/services.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- 页面头部 -->
+        <div class="page-header">
+            <div class="header-left">
+                <h1><i class="fas fa-user-tie"></i> 客服管理</h1>
+                <p class="subtitle">管理客服账号、权限和分组</p>
+            </div>
+            <div class="header-right">
+                <button class="btn-primary" onclick="openAddModal()">
+                    <i class="fas fa-plus"></i> 添加客服
+                </button>
+                <button class="btn-secondary" onclick="window.location.href='/admin'">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="totalServices">0</div>
+                    <div class="stat-label">总客服数</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <i class="fas fa-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="onlineServices">0</div>
+                    <div class="stat-label">在线客服</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="busyServices">0</div>
+                    <div class="stat-label">忙碌客服</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                    <i class="fas fa-moon"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="offlineServices">0</div>
+                    <div class="stat-label">离线客服</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 筛选和搜索 -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label><i class="fas fa-filter"></i> 状态</label>
+                <select id="stateFilter" class="form-control" onchange="searchServices()">
+                    <option value="">全部状态</option>
+                    <option value="online">在线</option>
+                    <option value="busy">忙碌</option>
+                    <option value="offline">离线</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fas fa-shield-alt"></i> 权限</label>
+                <select id="levelFilter" class="form-control" onchange="searchServices()">
+                    <option value="">全部权限</option>
+                    <option value="super_manager">超级管理员</option>
+                    <option value="manager">管理员</option>
+                    <option value="service">客服</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fas fa-search"></i> 搜索</label>
+                <input type="text" id="searchKeyword" class="form-control" placeholder="搜索用户名或昵称">
+            </div>
+
+            <div class="filter-actions">
+                <button class="btn-primary" onclick="searchServices()">
+                    <i class="fas fa-search"></i> 搜索
+                </button>
+                <button class="btn-secondary" onclick="resetFilters()">
+                    <i class="fas fa-redo"></i> 重置
+                </button>
+            </div>
+        </div>
+
+        <!-- 客服列表 -->
+        <div class="services-section">
+            <div class="services-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>头像</th>
+                            <th>用户名</th>
+                            <th>昵称</th>
+                            <th>权限</th>
+                            <th>状态</th>
+                            <th>电话</th>
+                            <th>邮箱</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="servicesTableBody">
+                        <!-- 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分页 -->
+            <div class="pagination">
+                <button class="page-btn" id="prevBtn" onclick="changePage(-1)" disabled>
+                    <i class="fas fa-chevron-left"></i> 上一页
+                </button>
+                <span class="page-info" id="pageInfo">第 1 / 1 页</span>
+                <button class="page-btn" id="nextBtn" onclick="changePage(1)" disabled>
+                    下一页 <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑客服模态框 -->
+    <div id="serviceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">添加客服</h3>
+                <button class="modal-close" onclick="closeServiceModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="serviceForm">
+                    <input type="hidden" id="serviceId">
+                    
+                    <div class="form-group">
+                        <label>用户名 <span class="required">*</span></label>
+                        <input type="text" id="userName" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>昵称 <span class="required">*</span></label>
+                        <input type="text" id="nickName" class="form-control" required>
+                    </div>
+
+                    <div class="form-group" id="passwordGroup">
+                        <label>密码 <span class="required">*</span></label>
+                        <input type="password" id="password" class="form-control">
+                        <small class="form-hint">编辑时留空表示不修改密码</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>权限级别 <span class="required">*</span></label>
+                        <select id="level" class="form-control" required>
+                            <option value="service">客服</option>
+                            <option value="manager">管理员</option>
+                            <option value="super_manager">超级管理员</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>电话</label>
+                        <input type="tel" id="phone" class="form-control">
+                    </div>
+
+                    <div class="form-group">
+                        <label>邮箱</label>
+                        <input type="email" id="email" class="form-control">
+                    </div>
+
+                    <div class="form-group">
+                        <label>分组ID</label>
+                        <input type="text" id="groupId" class="form-control" value="0">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeServiceModal()">取消</button>
+                <button type="button" class="btn-primary" onclick="saveService()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认模态框 -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>确认删除</h3>
+                <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="text-align: center; padding: 20px;">
+                    <i class="fas fa-exclamation-triangle" style="color: #f59e0b; font-size: 48px;"></i>
+                </p>
+                <p style="text-align: center; font-size: 16px;">
+                    确定要删除这个客服账号吗？<br>
+                    此操作不可恢复！
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeDeleteModal()">取消</button>
+                <button type="button" class="btn-danger" onclick="confirmDelete()">确定删除</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/admin/services.js') }}"></script>
+</body>
+</html>
+

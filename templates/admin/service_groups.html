@@ -1,0 +1,125 @@
+{% extends "admin/base.html" %}
+
+{% block title %}客服分组{% endblock %}
+
+{% block nav_services %}active{% endblock %}
+
+{% block breadcrumb %}
+<span><i class="fas fa-user-tie"></i> <i class="fas fa-chevron-right"></i> 客服管理 <i class="fas fa-chevron-right"></i> 客服分组</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-container {
+        padding: 20px;
+    }
+    
+    .page-header {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .groups-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+    
+    .group-card {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s;
+    }
+    
+    .group-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+    
+    .group-name {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 12px;
+    }
+    
+    .group-info {
+        color: #6b7280;
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+    
+    .group-actions {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+        color: white;
+    }
+    
+    .btn-secondary {
+        background: #f3f4f6;
+        color: #4b5563;
+    }
+    
+    .btn:hover {
+        transform: translateY(-2px);
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #9ca3af;
+    }
+    
+    .empty-state i {
+        font-size: 64px;
+        margin-bottom: 16px;
+        opacity: 0.3;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <h1><i class="fas fa-layer-group"></i> 客服分组管理</h1>
+            <p style="color: #6b7280; margin-top: 8px;">管理客服分组，优化团队协作</p>
+        </div>
+        <button class="btn btn-primary">
+            <i class="fas fa-plus"></i> 添加分组
+        </button>
+    </div>
+    
+    <div class="groups-grid" id="groupsList">
+        <div class="empty-state">
+            <i class="fas fa-layer-group"></i>
+            <p>暂无分组，点击"添加分组"创建</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/admin/service_groups.js') }}"></script>
+{% endblock %}

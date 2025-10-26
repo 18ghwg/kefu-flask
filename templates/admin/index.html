@@ -1,0 +1,391 @@
+{% extends "admin/base.html" %}
+
+{% block title %}管理后台首页{% endblock %}
+
+{% block breadcrumb %}
+<span><i class="fas fa-home"></i> <i class="fas fa-chevron-right"></i> 控制面板</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .welcome-section {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+        border-radius: 16px;
+        padding: 40px;
+        color: white;
+        margin-bottom: 30px;
+        box-shadow: var(--shadow-heavy);
+    }
+
+    .welcome-section h1 {
+        font-size: 32px;
+        margin-bottom: 10px;
+    }
+
+    .welcome-section p {
+        font-size: 16px;
+        opacity: 0.95;
+    }
+
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .action-card {
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: all 0.3s;
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+
+    .action-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+
+    .action-icon {
+        font-size: 48px;
+        margin-bottom: 15px;
+    }
+
+    .action-card h3 {
+        font-size: 18px;
+        margin-bottom: 10px;
+        color: var(--text-color-dark);
+    }
+
+    .action-card p {
+        font-size: 14px;
+        color: var(--text-color-light);
+        line-height: 1.6;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .stat-label {
+        font-size: 14px;
+        color: var(--text-color-light);
+        margin-bottom: 10px;
+    }
+
+    .stat-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-color-dark);
+    }
+
+    .stat-trend {
+        font-size: 13px;
+        margin-top: 8px;
+    }
+
+    .stat-trend.up {
+        color: #10b981;
+    }
+
+    .stat-trend.down {
+        color: #ef4444;
+    }
+
+    .system-info {
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .system-info h2 {
+        font-size: 20px;
+        margin-bottom: 20px;
+        color: var(--text-color-dark);
+    }
+
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        color: var(--text-color-light);
+        font-size: 14px;
+    }
+
+    .info-value {
+        color: var(--text-color-dark);
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .status-badge.online {
+        background: #d1fae5;
+        color: #065f46;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 欢迎区域 -->
+<div class="welcome-section">
+    <h1>👋 欢迎回来，{{ current_user.nick_name }}！</h1>
+    <p>当前时间：{{ now().strftime('%Y年%m月%d日 %H:%M') }} | 权限等级：{{ current_user.level }}</p>
+</div>
+
+<!-- 统计数据 -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">📊 总访客数</div>
+        <div class="stat-value" id="totalVisitors">{{ realtime.total_visitors }}</div>
+        <div class="stat-trend">累计访问</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">💬 正在咨询</div>
+        <div class="stat-value" id="activeChats">{{ realtime.chatting_count }}</div>
+        <div class="stat-trend">实时数据</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">👥 在线客服</div>
+        <div class="stat-value" id="onlineServices">{{ realtime.online_services }}</div>
+        <div class="stat-trend">实时状态</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">⏱️ 排队人数</div>
+        <div class="stat-value" id="waitingCount">{{ realtime.waiting_count }}</div>
+        <div class="stat-trend">{{ '等待中' if realtime.waiting_count > 0 else '无排队' }}</div>
+    </div>
+</div>
+
+<!-- 快捷操作 -->
+<div class="quick-actions">
+    <a href="/service/chat" class="action-card">
+        <div class="action-icon">💬</div>
+        <h3>客服工作台</h3>
+        <p>进入客服聊天界面，开始接待访客</p>
+    </a>
+
+    <a href="/admin/visitors" class="action-card">
+        <div class="action-icon">👥</div>
+        <h3>访客管理</h3>
+        <p>查看和管理所有访客信息</p>
+    </a>
+
+    <a href="/admin/dashboard" class="action-card">
+        <div class="action-icon">📊</div>
+        <h3>数据看板</h3>
+        <p>查看系统统计数据和图表分析</p>
+    </a>
+
+    <a href="/admin/knowledge" class="action-card">
+        <div class="action-icon">📚</div>
+        <h3>知识库</h3>
+        <p>管理智能机器人的问答知识</p>
+    </a>
+
+    <a href="/admin/services" class="action-card">
+        <div class="action-icon">👨‍💼</div>
+        <h3>客服管理</h3>
+        <p>添加、编辑和管理客服人员</p>
+    </a>
+
+    <a href="/admin/queue-management" class="action-card">
+        <div class="action-icon">📋</div>
+        <h3>队列管理</h3>
+        <p>实时监控排队和会话分配</p>
+    </a>
+
+    <a href="/admin/comments" class="action-card">
+        <div class="action-icon">⭐</div>
+        <h3>评价管理</h3>
+        <p>查看访客对服务的评价反馈</p>
+    </a>
+
+    <a href="/admin/system-settings" class="action-card">
+        <div class="action-icon">⚙️</div>
+        <h3>系统设置</h3>
+        <p>配置系统参数和功能开关</p>
+    </a>
+</div>
+
+<!-- 系统信息 -->
+<div class="system-info">
+    <h2>📋 系统信息</h2>
+    <div class="info-item">
+        <span class="info-label">系统状态</span>
+        <span class="info-value">
+            <span class="status-badge online">● 运行中</span>
+        </span>
+    </div>
+    <div class="info-item">
+        <span class="info-label">系统版本</span>
+        <span class="info-value">v1.0-beta</span>
+    </div>
+    <div class="info-item">
+        <span class="info-label">数据库</span>
+        <span class="info-value">MySQL 8.0</span>
+    </div>
+    <div class="info-item">
+        <span class="info-label">缓存</span>
+        <span class="info-value">Redis 6.0</span>
+    </div>
+    <div class="info-item">
+        <span class="info-label">Web框架</span>
+        <span class="info-value">Flask 2.3</span>
+    </div>
+    <div class="info-item">
+        <span class="info-label">实时通信</span>
+        <span class="info-value">Socket.IO 5.0</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+    // Socket.IO连接（用于实时更新）
+    let socket = null;
+    
+    // 初始化Socket.IO连接
+    function initSocketIO() {
+        socket = io({
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5
+        });
+        
+        socket.on('connect', function() {
+            console.log('✅ Socket.IO连接成功');
+            
+            // 管理员加入管理员房间以接收统计更新
+            socket.emit('admin_join', {
+                service_id: '{{ current_user.service_id }}',
+                service_name: '{{ current_user.nick_name }}'
+            });
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('❌ Socket.IO断开连接');
+        });
+        
+        // 监听实时统计数据更新
+        socket.on('statistics_update', function(data) {
+            console.log('📊 收到统计数据更新:', data);
+            updateDashboardStats(data);
+        });
+        
+        // 监听会话状态变化（新会话、会话结束等）
+        socket.on('session_created', function(data) {
+            console.log('🆕 新会话创建');
+            loadDashboardData(); // 刷新数据
+        });
+        
+        socket.on('session_ended', function(data) {
+            console.log('✅ 会话结束');
+            loadDashboardData(); // 刷新数据
+        });
+        
+        socket.on('error', function(error) {
+            console.error('Socket.IO错误:', error);
+        });
+    }
+    
+    // 更新仪表盘统计数据
+    function updateDashboardStats(data) {
+        if (data.total_visitors !== undefined) {
+            document.getElementById('totalVisitors').textContent = data.total_visitors;
+        }
+        
+        if (data.chatting_count !== undefined) {
+            document.getElementById('activeChats').textContent = data.chatting_count;
+            // 添加动画效果
+            const element = document.getElementById('activeChats');
+            element.style.transform = 'scale(1.1)';
+            setTimeout(() => {
+                element.style.transform = 'scale(1)';
+            }, 200);
+        }
+        
+        if (data.online_services !== undefined) {
+            document.getElementById('onlineServices').textContent = data.online_services;
+        }
+        
+        if (data.waiting_count !== undefined) {
+            document.getElementById('waitingCount').textContent = data.waiting_count;
+        }
+    }
+    
+    // 加载实时数据（备用/初始化）
+    function loadDashboardData() {
+        // 获取统计数据（使用管理后台专用的API）
+        fetch('/api/admin/statistics/overview?days=1')
+            .then(response => response.json())
+            .then(result => {
+                if (result.code === 0) {
+                    const data = result.data;
+                    
+                    // 更新访客数
+                    if (data.visitors && data.visitors.total !== undefined) {
+                        document.getElementById('totalVisitors').textContent = data.visitors.total;
+                    }
+                    
+                    // 更新在线客服数
+                    if (data.services && data.services.online !== undefined) {
+                        document.getElementById('onlineServices').textContent = data.services.online;
+                    }
+                    
+                    // ⚠️ 注意："正在咨询"数量由Socket.IO实时更新，这里不更新
+                    // 避免使用周期会话数（period）覆盖实时数据
+                }
+            })
+            .catch(error => {
+                console.error('加载数据失败:', error);
+            });
+    }
+
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始加载数据
+        loadDashboardData();
+        
+        // 初始化WebSocket连接实时更新
+        initSocketIO();
+        
+        // 每60秒备份刷新一次数据（防止WebSocket断开）
+        setInterval(loadDashboardData, 60000);
+    });
+</script>
+{% endblock %}

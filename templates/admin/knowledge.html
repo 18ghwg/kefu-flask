@@ -1,0 +1,192 @@
+{%extends "admin/base.html" %}
+
+{%block title %}知识库管理{%endblock %}
+
+{%block nav_knowledge %}active{%endblock %}
+
+{%block breadcrumb %}
+<span><i class="fas fa-book"></i> <i class="fas fa-chevron-right"></i> 知识库管理</span>
+{%endblock %}
+
+{%block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/knowledge.css') }}">
+<!-- Quill富文本编辑器 -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<style>
+    /* 富文本编辑器容器 */
+    .editor-container {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+        background: white;
+    }
+    
+    #replyEditor {
+        height: 250px;
+        background: white;
+    }
+    
+    /* 调整表格中的HTML内容显示 */
+    .reply-preview {
+        max-height: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .reply-preview * {
+        max-width: 100%;
+    }
+    
+    .reply-preview img {
+        max-width: 100px;
+        max-height: 60px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+<div class="container">
+        <div class="header">
+            <h1><i class="fas fa-robot"></i> 智能知识库管理</h1>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-success" onclick="showImportModal()">
+                    <i class="fas fa-file-import"></i> 批量导入
+                </button>
+                <button class="btn btn-primary" onclick="showAddModal()">
+                    <i class="fas fa-plus"></i> 添加知识
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats">
+            <div class="stat-card">
+                <h3>知识总数</h3>
+                <div class="value" id="totalCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>启用中</h3>
+                <div class="value" id="activeCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>已禁用</h3>
+                <div class="value" id="inactiveCount">0</div>
+            </div>
+        </div>
+
+        <!-- 搜索框 -->
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索关键词或回复内容...">
+            <button class="btn btn-primary" onclick="searchKnowledge()">
+                <i class="fas fa-search"></i> 搜索
+            </button>
+            <button class="btn btn-secondary" onclick="resetSearch()">
+                <i class="fas fa-redo"></i> 重置
+            </button>
+        </div>
+
+        <!-- 知识库列表 -->
+        <div class="knowledge-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th style="width: 20%;">关键词</th>
+                        <th style="width: 40%;">回复内容</th>
+                        <th>排序</th>
+                        <th>状态</th>
+                        <th style="width: 15%;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="knowledgeList">
+                    <!-- 动态加载 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <button onclick="changePage(-1)" id="prevBtn">
+                <i class="fas fa-chevron-left"></i> 上一页
+            </button>
+            <span id="pageInfo">第 1 页</span>
+            <button onclick="changePage(1)" id="nextBtn">
+                下一页 <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 添加/编辑模态框 -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">添加知识</h2>
+            </div>
+            <form id="editForm">
+                <input type="hidden" id="editId">
+                <div class="form-group">
+                    <label>关键词 *</label>
+                    <input type="text" id="keyword" required placeholder="输入关键词，如：退货、售后、价格等">
+                    <small style="color: #6b7280; display: block; margin-top: 5px;">
+                        访客消息包含此关键词时，机器人将自动回复
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label>回复内容 *</label>
+                    <div class="editor-container">
+                        <div id="replyEditor"></div>
+                    </div>
+                    <small style="color: #6b7280; display: block; margin-top: 5px;">
+                        提示：支持富文本格式，可插入链接、图片等
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label>排序 (数字越大越靠前)</label>
+                    <input type="number" id="sort" value="0">
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 10px;">启用状态</label>
+                    <div class="toggle-switch-container">
+                        <input type="checkbox" id="status" class="toggle-checkbox" checked>
+                        <label for="status" class="toggle-label">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text-on">已启用</span>
+                            <span class="toggle-text-off">已禁用</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 批量导入模态框 -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>批量导入知识库</h2>
+            </div>
+            <div class="form-group">
+                <label>JSON格式数据</label>
+                <textarea id="importData" rows="10" placeholder='[{"keyword":"关键词1","reply":"回复1","sort":0},{"keyword":"关键词2","reply":"回复2","sort":0}]'></textarea>
+                <small style="color: #6b7280; display: block; margin-top: 5px;">
+                    格式示例：[{"keyword":"工作时间","reply":"9:00-18:00","sort":0}]
+                </small>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeImportModal()">取消</button>
+                <button type="button" class="btn btn-success" onclick="importKnowledge()">导入</button>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- Quill.js库 -->
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script src="{{ url_for('static', filename='js/admin/knowledge.js') }}"></script>
+</div>
+{% endblock %}

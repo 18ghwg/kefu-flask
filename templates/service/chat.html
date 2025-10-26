@@ -1,0 +1,4042 @@
+{% extends "service/base.html" %}
+
+{% block title %}客服工作台 - 聊天{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/service/chat_inline.css') }}">
+<style>
+    /* ⚡ 历史消息加载动画 */
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes fadeOut {
+        from { opacity: 1; transform: translateY(0); }
+        to { opacity: 0; transform: translateY(-10px); }
+    }
+    
+    /* ⚡ 消息容器无感加载优化 */
+    @keyframes fadeInContent {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .chat-messages.loading {
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+    
+    .chat-messages.loaded {
+        animation: fadeInContent 0.15s ease;
+    }
+    
+    /* 骨架屏效果 */
+    @keyframes shimmer {
+        0% { background-position: -468px 0; }
+        100% { background-position: 468px 0; }
+    }
+    
+    .message-skeleton {
+        padding: 12px;
+        margin: 8px 15px;
+        border-radius: 8px;
+        background: linear-gradient(to right, #f0f0f0 8%, #f8f8f8 18%, #f0f0f0 33%);
+        background-size: 800px 104px;
+        animation: shimmer 1.5s infinite linear;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 会话列表遮罩层 -->
+<div class="sidebar-overlay" id="chatSidebarOverlay"></div>
+
+<div class="chat-container">
+    <!-- 访客列表侧边栏 -->
+    <div class="chat-sidebar" id="chatSidebar">
+        <div class="chat-sidebar-header">
+                <h2>💬 会话列表</h2>
+                <div class="stats">
+                    在线访客: <span id="onlineCount">0</span> | 
+                    待处理: <span id="pendingCount">0</span>
+                </div>
+                <div class="stats" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+                    当前接待: <span id="currentWorkload" style="color: #10b981; font-weight: 600;">0</span><span id="maxWorkloadContainer"> / <span id="maxWorkload">5</span></span>
+                    <span id="workloadStatus" style="margin-left: 8px; font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #d1fae5; color: #059669;">空闲</span>
+                </div>
+            </div>
+
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 搜索访客..." id="searchInput">
+            </div>
+
+            <!-- Tab切换 -->
+            <div class="chat-tabs">
+                <div class="chat-tab active" onclick="switchTab('current')">
+                    当前会话
+                    <span class="chat-tab-badge" id="currentSessionCount">0</span>
+                </div>
+                <div class="chat-tab" onclick="switchTab('queue')">
+                    排队列表
+                    <span class="chat-tab-badge" id="queueCount">0</span>
+                </div>
+            </div>
+
+            <!-- 当前会话列表 -->
+            <div class="visitor-list active" id="visitorList">
+                <div class="empty-state">
+                    <div style="font-size: 48px;">👥</div>
+                    <h3>暂无会话</h3>
+                    <p>等待访客接入...</p>
+                </div>
+            </div>
+            
+            <!-- 访客列表分页 -->
+            <div id="visitorPagination" style="padding: 12px 15px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #6b7280;">
+                    <span>共 <strong id="visitorTotal">0</strong> 个访客</span>
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="loadVisitorPage(currentVisitorPage - 1)" id="prevPageBtn" 
+                                style="padding: 5px 10px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer;">
+                            上一页
+                        </button>
+                        <span style="padding: 5px 10px;">
+                            <span id="currentPageNum">1</span> / <span id="totalPages">1</span>
+                        </span>
+                        <button onclick="loadVisitorPage(currentVisitorPage + 1)" id="nextPageBtn"
+                                style="padding: 5px 10px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer;">
+                            下一页
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 排队列表 -->
+            <div class="queue-list" id="queueList">
+                <div class="empty-state">
+                    <div style="font-size: 48px;">⏳</div>
+                    <h3>暂无排队</h3>
+                    <p>没有访客在排队...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主聊天区域 -->
+        <div class="chat-area">
+            <!-- 移动端切换按钮 - 移到外层确保始终可见 -->
+            <button id="mobileToggle" class="mobile-toggle" style="display: none;">
+                <i class="fas fa-bars" id="toggleIcon"></i>
+            </button>
+            
+            <div id="chatContainer" class="empty-state">
+                <div style="font-size: 64px;">💬</div>
+                <h3>选择一个访客开始聊天</h3>
+                <p>从左侧访客列表选择要沟通的访客</p>
+            </div>
+
+        <!-- 聊天界面（动态显示） -->
+        <div id="chatInterface" style="display: none;">
+                <div class="chat-header">
+                    <div class="chat-visitor-info">
+                        <div class="chat-visitor-avatar" id="currentVisitorAvatar">👤</div>
+                        <div class="chat-visitor-details">
+                            <h3 id="currentVisitorName">访客</h3>
+                            <p id="currentVisitorInfo">来源: 网站首页</p>
+                        </div>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="action-btn" onclick="toggleVisitorInfo()">ℹ️ 信息</button>
+                        <button class="action-btn" onclick="transferChat()">🔄 转接</button>
+                        <button class="action-btn" onclick="endChat()">✓ 结束</button>
+                        <button class="action-btn" id="blacklistBtn" onclick="toggleBlacklist()" style="display:none;">
+                            <span id="blacklistIcon">🚫</span>
+                            <span id="blacklistText">拉黑</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <!-- ⚡ 历史消息加载指示器 -->
+                    <div id="historyLoadingIndicator" style="display: none; padding: 15px; text-align: center; background: linear-gradient(to right, #f0f9ff, #e0f2fe); border-radius: 8px; margin: 10px; animation: fadeIn 0.3s;">
+                        <div style="display: inline-block;">
+                            <div class="loading-spinner" style="width: 20px; height: 20px; border: 3px solid #e0f2fe; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle;"></div>
+                            <span id="loadingProgressText" style="margin-left: 10px; color: #3b82f6; font-size: 13px; vertical-align: middle;">正在加载历史消息...</span>
+                        </div>
+                    </div>
+                    <!-- 消息动态加载 -->
+                </div>
+
+                <div class="typing-indicator" id="typingIndicator">
+                    访客正在输入...
+                </div>
+
+                <div class="quick-replies">
+                    <button class="quick-reply-btn" onclick="sendQuickReply('您好，我是客服，很高兴为您服务！')">👋 欢迎语</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('请稍等，我帮您查询一下')">⏱️ 稍等</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('感谢您的咨询，还有其他问题吗？')">💯 感谢</button>
+                    <button class="quick-reply-btn" onclick="sendQuickReply('很抱歉给您带来不便')">😅 抱歉</button>
+                </div>
+
+                <div class="chat-input">
+                    <div class="input-toolbar">
+                    <button id="emojiBtn" class="toolbar-btn" title="表情">😊</button>
+                    <button id="imageBtn" class="toolbar-btn" title="图片">📷</button>
+                    <button id="fileBtn" class="toolbar-btn" title="文件">📎</button>
+                        <button id="knowledgeBtn" class="toolbar-btn" title="知识库">📚</button>
+                    </div>
+                    <div class="input-wrapper">
+                    <textarea id="messageInput" placeholder="输入消息或粘贴图片..." rows="1"></textarea>
+                    <button id="sendBtn" onclick="sendMessage()">发送</button>
+                    </div>
+                    
+                    <!-- ✅ 转接提示区域（管理员专用 - 转接到我） -->
+                    <div id="transferHint" style="display: none; padding: 12px; background: #fef3c7; border-left: 4px solid #f59e0b; margin-top: 8px; border-radius: 6px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                            <div style="flex: 1;">
+                                <div style="font-size: 13px; color: #92400e; font-weight: 500;">
+                                    ⚠️ <span id="transferHintText">该访客正由其他客服接待</span>
+                                </div>
+                            </div>
+                            <button id="transferToMeBtn" onclick="transferVisitorToMe()" 
+                                    style="padding: 6px 16px; background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; transition: all 0.2s;">
+                                🔄 转接到我
+                            </button>
+                        </div>
+                    </div>
+                    
+                <!-- 文件输入 -->
+                <input type="file" id="imageInput" style="display: none;" accept="image/*" />
+                <input type="file" id="fileInputElem" style="display: none;" />
+                <!-- 上传进度 -->
+                <div id="uploadProgress" style="display: none; padding: 10px 20px; background: #f9fafb;">
+                    <div style="height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden;">
+                        <div id="progressFill" style="height: 100%; background: #3b82f6; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <span id="progressText" style="font-size: 12px; color: #6b7280; margin-top: 4px; display: block;">上传中... 0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识库弹窗 -->
+    <div id="knowledgeModal" class="knowledge-modal" style="display: none;">
+        <div class="knowledge-modal-content">
+            <div class="knowledge-modal-header">
+                <h3>📚 知识库快速查询</h3>
+                <button class="close-btn" onclick="closeKnowledgeModal()">×</button>
+            </div>
+            <div class="knowledge-modal-body">
+                <div class="knowledge-search">
+                    <input type="text" id="knowledgeSearch" placeholder="🔍 搜索关键词..." onkeyup="searchKnowledge()" />
+                </div>
+                <div class="knowledge-list" id="knowledgeList">
+                    <div style="text-align: center; padding: 20px; color: #9ca3af;">
+                        加载中...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 访客详细信息侧边栏 -->
+    <div class="visitor-info-panel" id="visitorInfoPanel" style="display: none;">
+        <div class="visitor-info-header">
+            <h3>访客信息</h3>
+            <button class="close-btn" onclick="toggleVisitorInfo()">✕</button>
+        </div>
+        <div class="visitor-info-content">
+            <div class="info-section">
+                <div class="info-item">
+                    <span class="info-label">👤 访客名称</span>
+                    <span class="info-value" id="infoVisitorName">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">🆔 访客ID</span>
+                    <span class="info-value" id="infoVisitorId">-</span>
+                </div>
+            </div>
+            
+                <div class="info-section">
+                    <h4>🌐 网络信息</h4>
+                    <div class="info-item">
+                        <span class="info-label">IP地址</span>
+                        <span class="info-value" id="infoIP">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">地理位置</span>
+                        <span class="info-value" id="infoLocation">-</span>
+                    </div>
+                </div>
+            
+            <div class="info-section">
+                <h4>💻 设备信息</h4>
+                <div class="info-item">
+                    <span class="info-label">浏览器</span>
+                    <span class="info-value" id="infoBrowser">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">操作系统</span>
+                    <span class="info-value" id="infoOS">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">设备类型</span>
+                    <span class="info-value" id="infoDevice">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">屏幕分辨率</span>
+                    <span class="info-value" id="infoResolution">-</span>
+                </div>
+            </div>
+            
+            <div class="info-section">
+                <h4>📊 访问统计</h4>
+                <div class="info-item">
+                    <span class="info-label">访问次数</span>
+                    <span class="info-value" id="infoVisitCount">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">首次访问</span>
+                    <span class="info-value" id="infoFirstVisit">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+    <!-- Socket.IO 客户端 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/emoji-picker.css') }}">
+    <script src="{{ url_for('static', filename='js/vendor/socket.io.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/emoji-picker.js') }}"></script>
+
+<script>
+    // ========== 工具函数：HTML转义和清洁 ==========
+    
+    // HTML转义函数
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // HTML清洁函数（防止XSS，但允许安全的HTML标签）
+    function sanitizeHtml(html) {
+        if (!html) return '';
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        
+        // 移除危险标签
+        temp.querySelectorAll('script, style, iframe, object, embed, form, input, button').forEach(el => el.remove());
+        
+        // 移除危险属性
+        temp.querySelectorAll('*').forEach(el => {
+            Array.from(el.attributes).forEach(attr => {
+                if (attr.name.startsWith('on') || attr.name === 'formaction' || attr.name === 'form') {
+                    el.removeAttribute(attr.name);
+                }
+            });
+            
+            // 清理链接
+            if (el.tagName === 'A' && el.hasAttribute('href')) {
+                const href = el.getAttribute('href');
+                if (href && !href.match(/^(https?:|mailto:)/i)) {
+                    el.removeAttribute('href');
+                }
+            }
+        });
+        
+        return temp.innerHTML;
+    }
+    
+    // ⚡ 消息格式化缓存（性能优化2025-10-26）
+    const messageFormatCache = new Map();
+    const MAX_CACHE_SIZE = 100;
+    
+    // 格式化最后一条消息（处理文件、图片、Emoji等特殊类型）
+    function formatLastMessage(content) {
+        if (!content) return '';
+        
+        // ⚡ 检查缓存（避免重复格式化）
+        if (messageFormatCache.has(content)) {
+            return messageFormatCache.get(content);
+        }
+        
+        let result = '';
+        
+        try {
+            // 尝试解析JSON（文件、图片等）
+            const parsed = JSON.parse(content);
+            
+            // 判断是图片还是文件
+            if (parsed.type === 'image') {
+                result = '[图片]';
+            } else if (parsed.type === 'file') {
+                if (parsed.mime_type && parsed.mime_type.startsWith('image/')) {
+                    result = '[图片]';
+                } else {
+                    result = '[文件]';
+                }
+            } else if (parsed.url) {
+                if (parsed.mime_type) {
+                    result = parsed.mime_type.startsWith('image/') ? '[图片]' : '[文件]';
+                } else {
+                    const url = parsed.url.toLowerCase();
+                    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+                    result = imageExts.some(ext => url.includes(ext)) ? '[图片]' : '[文件]';
+                }
+            } else {
+                const jsonStr = JSON.stringify(parsed);
+                result = jsonStr.length > 20 ? jsonStr.substring(0, 20) + '...' : jsonStr;
+            }
+        } catch (e) {
+            // 不是JSON格式，处理为普通文本
+            const trimmedContent = content.trim();
+            
+            // ⚡ 性能优化：只对短文本进行Emoji检测（避免长文本正则匹配耗时）
+            const maxEmojiCheckLength = 50;
+            if (trimmedContent.length <= maxEmojiCheckLength) {
+                const emojiRegex = /^[\p{Emoji}\u200d]+$/u;
+                if (emojiRegex.test(trimmedContent)) {
+                    result = trimmedContent.length > 3 
+                        ? trimmedContent.substring(0, 3) + '...' 
+                        : trimmedContent;
+                } else {
+                    result = trimmedContent.length > 20 
+                        ? trimmedContent.substring(0, 20) + '...' 
+                        : trimmedContent;
+                }
+            } else {
+                result = trimmedContent.substring(0, 20) + '...';
+            }
+        }
+        
+        // ⚡ 缓存结果（限制缓存大小，防止内存泄漏）
+        if (messageFormatCache.size >= MAX_CACHE_SIZE) {
+            const firstKey = messageFormatCache.keys().next().value;
+            messageFormatCache.delete(firstKey);
+        }
+        messageFormatCache.set(content, result);
+        
+        return result;
+    }
+    
+    // 客服信息（从Flask模板注入）
+    const serviceId = {{ current_user.service_id if current_user.service_id else 'null' }};
+    const serviceName = '{{ current_user.nick_name }}';
+    const userLevel = '{{ current_user.level }}';  // 用户权限级别
+    let socket = null;
+    let currentVisitorId = null;
+    
+    // ✅ 验证客服ID
+    if (!serviceId) {
+        console.error('❌ 当前用户没有service_id，无法使用客服工作台');
+        alert('当前账号不是客服账号，无法使用客服工作台。请使用客服账号登录。');
+    }
+    let visitors = {}; // 存储访客信息
+    let unreadCounts = {}; // ⚡ 存储每个访客的未读消息数（持久化，不会因为列表刷新而丢失）
+    let typingTimeout = null;
+    
+    // 访客列表分页相关变量
+    let currentVisitorPage = 1;
+    let totalVisitorPages = 1;
+    let visitorPerPage = 20;
+
+        // ⚡ 未读消息轮询定时器（性能优化：替代实时推送）
+        let unreadPollingTimer = null;
+        const UNREAD_POLLING_INTERVAL = 8000; // 8秒轮询一次
+        
+        // ⚡ 访客列表轮询定时器（性能优化：替代事件驱动刷新）
+        let visitorListPollingTimer = null;
+        const VISITOR_LIST_POLLING_INTERVAL = 30000; // 30秒轮询一次
+        let visitorListLoadPending = false; // 防抖：是否有待处理的加载请求
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initSocket();
+            initInput();
+            initChatScroll();  // ✅ 初始化聊天滚动监听
+            startUnreadMessagePolling();  // ⚡ 启动未读消息轮询
+            startVisitorListPolling();  // ⚡ 启动访客列表轮询
+            // ✅ 访客列表加载延迟到Socket连接成功后
+        });
+        
+        // ⚡ 页面卸载时清除定时器
+        window.addEventListener('beforeunload', function() {
+            if (unreadPollingTimer) {
+                clearInterval(unreadPollingTimer);
+            }
+            if (visitorListPollingTimer) {
+                clearInterval(visitorListPollingTimer);
+            }
+        });
+
+    // ⚡ 启动未读消息轮询（性能优化：替代实时WebSocket推送）
+    function startUnreadMessagePolling() {
+        // 立即执行一次
+        fetchUnreadMessages();
+        
+        // 每8秒轮询一次
+        unreadPollingTimer = setInterval(function() {
+            fetchUnreadMessages();
+        }, UNREAD_POLLING_INTERVAL);
+        
+        console.log('⚡ 未读消息轮询已启动 (每' + (UNREAD_POLLING_INTERVAL/1000) + '秒)');
+    }
+    
+    // ⚡ 获取未读消息数
+    function fetchUnreadMessages() {
+        fetch('/api/service/unread_messages', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 0) {
+                const unreadCount = data.data.unread_count || 0;
+                updateUnreadBadge(unreadCount);
+                console.log('📬 未读消息数已更新:', unreadCount);
+            } else {
+                console.error('❌ 获取未读消息数失败:', data.msg);
+            }
+        })
+        .catch(error => {
+            console.error('❌ 未读消息轮询失败:', error);
+        });
+    }
+    
+    // ⚡ 更新全局未读消息徽章显示（不包括访客列表里的未读徽章）
+    function updateUnreadBadge(count) {
+        // ⚡ 修复：只更新导航栏的全局未读徽章，不要影响访客列表里的访客未读徽章
+        // 访客列表里的未读徽章由 updateVisitorUnread() 函数单独管理
+        const globalBadge = document.getElementById('unreadMessageCount');
+        
+        if (globalBadge) {
+            if (count > 0) {
+                globalBadge.textContent = count > 99 ? '99+' : count;
+                globalBadge.style.display = 'inline-block';
+            } else {
+                globalBadge.style.display = 'none';
+            }
+        }
+        
+        // 更新页面标题（可选）
+        if (count > 0) {
+            if (!document.title.startsWith('(')) {
+                document.title = `(${count > 99 ? '99+' : count}) ` + document.title;
+            }
+        } else {
+            // 移除标题中的未读数
+            document.title = document.title.replace(/^\(\d+\+?\)\s*/, '');
+        }
+    }
+
+    // 初始化Socket.IO连接
+    function initSocket() {
+        socket = io({
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', function() {
+            console.log('Socket connected:', socket.id);
+            
+            // ✅ 只有有效的serviceId才发送join事件
+            if (serviceId) {
+                console.log('✅ 发送 service_join:', { service_id: serviceId, service_name: serviceName });
+                socket.emit('service_join', {
+                    service_id: serviceId,
+                    service_name: serviceName
+                });
+            } else {
+                console.error('❌ serviceId 无效，跳过 service_join');
+            }
+        });
+
+        socket.on('join_success', function(data) {
+            console.log('Join success:', data);
+            
+            // ✅ Socket连接成功后，加载访客列表
+            console.log('🔄 Socket连接成功，开始加载访客列表...');
+            loadVisitorPage(1);
+        });
+
+        socket.on('new_visitor', function(data) {
+            console.log('New visitor (完整数据):', data);
+            console.log('  - Browser:', data.browser);
+            console.log('  - OS:', data.os);
+            console.log('  - Device:', data.device);
+            
+            // ✅ 新访客接入时的处理
+            if (currentVisitorPage === 1) {
+                // 如果当前在第一页，直接添加到顶部
+                addVisitorToList(data, true);  // true表示插入到顶部
+            } else {
+                // 如果不在第一页，提示用户并可选择跳转
+                console.log('📌 新访客接入，但当前不在第一页');
+                // 可选：显示提示或自动跳转到第一页
+                // loadVisitorPage(1);
+            }
+            
+            updateStats();
+        });
+
+        socket.on('receive_message', function(data) {
+            console.log('📨 Received message:', data);
+            
+            // ✅ 确定访客ID（访客发送时用from_id，机器人/客服发送时用to_id）
+            const visitorId = data.from_type === 'visitor' ? data.from_id : data.to_id;
+            console.log('  📍 Visitor ID:', visitorId);
+            console.log('  📍 Current Visitor ID:', currentVisitorId);
+            console.log('  📍 Message Type:', data.from_type);
+            
+            // 如果是访客发来的消息，触发提示
+            if (data.from_type === 'visitor') {
+                // 播放提示音
+                playNotificationSound();
+                
+                // 标题闪烁
+                startTitleFlash(data.content);
+                
+                // ✅ 访客置顶（历史访客再次咨询时）
+                bringVisitorToTop(visitorId);
+                
+                // 桌面通知（如果不在当前聊天窗口）
+                if (!isPageVisible || currentVisitorId != visitorId) {
+                    const visitorName = visitors[visitorId]?.visitor_name || data.from_name || '访客';
+                    const messagePreview = data.content.length > 30 ? data.content.substring(0, 30) + '...' : data.content;
+                    showDesktopNotification(`新消息来自 ${visitorName}`, messagePreview);
+                }
+            }
+            
+            // 如果访客不在列表中，添加到列表
+            if (!visitors[visitorId] && data.from_type === 'visitor') {
+                const newVisitor = {
+                    visitor_id: visitorId,
+                    visitor_name: data.from_name || '访客' + visitorId.slice(-4),
+                    is_active: true  // 正在发送消息的访客标记为活跃
+                };
+                // 只有在第一页时才添加，否则会破坏分页逻辑
+                if (currentVisitorPage === 1) {
+                    addVisitorToList(newVisitor, true);  // 插入到顶部
+                }
+            }
+            
+            // 更新访客列表中的最后一条消息
+            const visitorItem = document.getElementById('visitor_' + visitorId);
+            if (visitorItem) {
+                const lastMsgEl = visitorItem.querySelector('.visitor-last-msg');
+                if (lastMsgEl) {
+                    // ⚡ 格式化消息内容（带错误保护）
+                    try {
+                        let displayContent = formatLastMessage(data.content);
+                        if (data.from_type === 'robot') {
+                            displayContent = '[机器人] ' + displayContent;
+                        }
+                        lastMsgEl.textContent = displayContent;
+                    } catch (e) {
+                        console.error('格式化消息失败:', e, data.content);
+                        lastMsgEl.textContent = '[消息格式错误]';
+                    }
+                }
+            }
+            
+            // 如果是当前选中的访客，直接显示消息
+            if (visitorId == currentVisitorId) {
+                console.log('  ✅ 显示消息给当前访客');
+                // ✅ 根据from_type判断消息类型，包括机器人
+                if (data.from_type === 'robot') {
+                    console.log('  🤖 渲染机器人消息');
+                    addRobotMessage(data.content, data.timestamp);
+                } else {
+                    console.log('  👤 渲染普通消息');
+                    const msgType = data.from_type === 'visitor' ? 'visitor' : 'service';
+                    // ✅ 传递访客名称
+                    const fromName = data.from_type === 'visitor' ? data.from_name : null;
+                    addMessage(data.content, msgType, data.timestamp, data.msg_type, fromName);
+                }
+            } else {
+                console.log('  ⏭️ 不是当前访客，只更新未读');
+                // ⚡ 只有访客发送的消息才增加未读数
+                if (data.from_type === 'visitor') {
+                    updateVisitorUnread(visitorId);
+                }
+            }
+        });
+
+        socket.on('user_typing', function(data) {
+            if (data.from_id == currentVisitorId) {
+                const typingIndicator = document.getElementById('typingIndicator');
+                if (data.is_typing) {
+                    typingIndicator.classList.add('show');
+                } else {
+                    typingIndicator.classList.remove('show');
+                }
+            }
+        });
+
+        socket.on('user_offline', function(data) {
+            if (data.user_type === 'visitor') {
+                removeVisitorFromList(data.user_id);
+                updateStats();
+            }
+        });
+
+        socket.emit('get_online_users');
+        socket.on('online_users_list', function(data) {
+            console.log('Online users:', data);
+            console.log('在线访客数量:', data.visitors ? data.visitors.length : 0);
+            
+            // ✅ 不再自动添加访客到列表，访客列表由分页API管理
+            // 只更新在线状态和统计数据
+            if (data.visitors) {
+                // 标记在线访客（可选：更新访客的在线状态显示）
+                data.visitors.forEach(visitor => {
+                    if (visitors[visitor.visitor_id]) {
+                        visitors[visitor.visitor_id].is_online = true;
+                    }
+                });
+            }
+            
+            updateStats();
+            
+            // ✅ 如果访客列表为空，触发加载第一页
+            const visitorList = document.getElementById('visitorList');
+            if (!visitorList.querySelector('.visitor-item')) {
+                console.log('📋 访客列表为空，加载第一页...');
+                loadVisitorPage(1);
+            }
+        });
+        
+        // 监听访客信息更新
+        socket.on('visitor_info_updated', function(data) {
+            console.log('访客信息已更新:', data);
+            const visitorId = data.visitor_id;
+            
+            // 更新visitors对象中的信息
+            if (visitors[visitorId]) {
+                visitors[visitorId].ip = data.ip;
+                visitors[visitorId].location = data.location;
+                visitors[visitorId].country = data.country;
+                visitors[visitorId].province = data.province;
+                visitors[visitorId].city = data.city;
+                visitors[visitorId].browser = data.browser;
+                visitors[visitorId].os = data.os;
+                visitors[visitorId].device = data.device;
+                visitors[visitorId].screen_resolution = data.screen_resolution;
+                
+                console.log('已更新访客信息:', visitorId, visitors[visitorId]);
+                
+                // 如果当前正在查看该访客的信息面板，实时更新显示
+                if (currentVisitorId === visitorId) {
+                    const panel = document.getElementById('visitorInfoPanel');
+                    if (panel && panel.style.display !== 'none') {
+                        document.getElementById('infoIP').textContent = data.ip || '-';
+                        document.getElementById('infoLocation').textContent = data.location || data.country || '未知';
+                        document.getElementById('infoBrowser').textContent = data.browser || 'Unknown';
+                        document.getElementById('infoOS').textContent = data.os || 'Unknown';
+                        document.getElementById('infoDevice').textContent = data.device || 'Desktop';
+                        document.getElementById('infoResolution').textContent = data.screen_resolution || '-';
+                        console.log('访客信息面板已实时更新');
+                    }
+                }
+            }
+        });
+        
+        // ========== 监听访客重新分配事件 ==========
+        socket.on('visitor_assignment_updated', function(data) {
+            console.log('🔄 访客分配状态更新:', data);
+            
+            const visitorId = data.visitor_id;
+            // ✅ 智能判断：如果 new_service_id 等于当前客服ID，则分配给我
+            const assignedToMe = data.new_service_id === serviceId || data.assigned_to_me === true;
+            const canReply = assignedToMe || (data.can_reply !== false);
+            const serviceName = data.new_service_name || data.service_name;
+            
+            // 如果当前正在查看该访客的对话
+            if (currentVisitorId === visitorId) {
+                const messageInput = document.getElementById('messageInput');
+                const sendBtn = document.getElementById('sendBtn');
+                
+                if (assignedToMe && canReply) {
+                    // 访客分配给我了，解锁输入框
+                    console.log('✅ 访客已分配给我，解锁输入框');
+                    if (messageInput) {
+                        messageInput.disabled = false;
+                        messageInput.placeholder = '输入消息...';
+                        messageInput.style.background = '';
+                    }
+                    if (sendBtn) {
+                        sendBtn.disabled = false;
+                    }
+                    
+                    // ✅ 隐藏转接提示
+                    const transferHint = document.getElementById('transferHint');
+                    if (transferHint) {
+                        transferHint.style.display = 'none';
+                    }
+                    
+                    // 显示系统消息
+                    addSystemMessage(`✅ ${data.message || '访客已分配给您'}`);
+                    
+                    // 播放提示音
+                    playNotificationSound();
+                } else {
+                    // 访客被分配给其他客服，锁定输入框
+                    console.log('🔒 访客已分配给其他客服，锁定输入框');
+                    if (messageInput) {
+                        messageInput.disabled = true;
+                        messageInput.placeholder = `该访客正由客服 ${serviceName} 接待`;
+                        messageInput.style.background = '#f5f5f5';
+                    }
+                    if (sendBtn) {
+                        sendBtn.disabled = true;
+                    }
+                    
+                    // ✅ 管理员显示"转接到我"按钮
+                    const isManager = {{ 'true' if current_user.level in ['super_manager', 'manager'] else 'false' }};
+                    const transferHint = document.getElementById('transferHint');
+                    const transferHintText = document.getElementById('transferHintText');
+                    const transferToMeBtn = document.getElementById('transferToMeBtn');
+                    
+                    if (isManager && transferHint && transferHintText) {
+                        transferHintText.textContent = `该访客正由客服 ${serviceName} 接待`;
+                        transferHint.style.display = 'block';
+                        
+                        // ✅ 重置按钮状态（防止上次转接后按钮还是禁用状态）
+                        if (transferToMeBtn) {
+                            transferToMeBtn.disabled = false;
+                            transferToMeBtn.textContent = '🔄 转接到我';
+                        }
+                        
+                        console.log('✅ 管理员转接按钮已显示');
+                    }
+                    
+                    // 显示系统消息
+                    if (data.reason === 'reassigned_away') {
+                        addSystemMessage(`⚠️ ${data.message || '访客已被重新分配'}`);
+                    }
+                }
+                
+                // 重新检查回复权限（确保状态同步）
+                setTimeout(() => {
+                    checkReplyPermission(visitorId);
+                }, 500);
+            }
+            
+            // 更新访客列表中的分配状态（如果需要）
+            if (data.visitor) {
+                const visitorData = data.visitor;
+                if (visitors[visitorId]) {
+                    // 更新访客对象
+                    Object.assign(visitors[visitorId], visitorData);
+                }
+            }
+        });
+        
+        // ========== 队列管理Socket.IO事件监听 ==========
+        
+        // 新访客排队通知
+        socket.on('new_visitor_queued', function(data) {
+            console.log('🔔 新访客排队:', data);
+            
+            // 播放提示音
+            playNotificationSound();
+            
+            // 显示桌面通知
+            showDesktopNotification(
+                '新访客排队',
+                `${data.visitor_name} (${data.priority_text}) 已加入队列，排队位置 #${data.position}`
+            );
+            
+            // 刷新排队列表
+            if (document.getElementById('queueList').style.display !== 'none') {
+                loadQueueList();
+            }
+            
+            // 更新队列徽章
+            const queueCount = document.getElementById('queueCount');
+            const currentCount = parseInt(queueCount.textContent) || 0;
+            queueCount.textContent = currentCount + 1;
+            
+            // 闪烁提示
+            queueCount.style.animation = 'pulse 1s ease-in-out 3';
+        });
+        
+        // 队列更新事件
+        socket.on('queue_update', function(data) {
+            console.log('📊 队列更新:', data);
+            
+            // 更新统计数据
+            if (data.stats) {
+                document.getElementById('pendingCount').textContent = data.stats.waiting_count || 0;
+                document.getElementById('queueCount').textContent = data.stats.waiting_count || 0;
+            }
+            
+            // 如果正在查看排队列表，刷新
+            if (document.getElementById('queueList').style.display !== 'none') {
+                loadQueueList();
+            }
+            
+            // 监听队列更新，动态调整轮询间隔
+            const newQueueSize = data.waiting_count || 0;
+            if (newQueueSize !== currentQueueSize) {
+                currentQueueSize = newQueueSize;
+                startQueueStatusCheck(); // 重启定时器，调整间隔
+            }
+        });
+        
+        // 访客优先级更新
+        socket.on('priority_updated', function(data) {
+            console.log('⭐ 优先级更新:', data);
+            
+            // 刷新排队列表
+            if (document.getElementById('queueList').style.display !== 'none') {
+                loadQueueList();
+            }
+        });
+        
+        // 客服接入成功
+        socket.on('queue_accepted', function(data) {
+            console.log('✅ 接入成功:', data);
+            
+            // 刷新当前会话列表
+            loadVisitorList();
+            
+            // 刷新排队列表
+            if (document.getElementById('queueList').style.display !== 'none') {
+                loadQueueList();
+            }
+            
+            // 显示提示
+            showToast('访客接入成功！', 'success');
+        });
+        
+        // 接收会话超时通知
+        socket.on('session_timeout', function(data) {
+            console.log('⏱️ 会话超时:', data);
+            
+            // 如果是当前访客的会话超时
+            if (data.visitor_id === currentVisitorId) {
+                showToast('会话已超时自动结束', 'warning');
+                addSystemMessage('会话已超时');
+                
+                // 从访客列表移除
+                removeVisitorFromList(data.visitor_id);
+                
+                // 清空当前访客
+                currentVisitorId = null;
+                document.getElementById('chatMessages').innerHTML = '';
+            } else {
+                // 其他访客的会话超时，只更新列表
+                removeVisitorFromList(data.visitor_id);
+            }
+            
+            // ⚡ 性能优化：不再立即刷新，等待定时轮询（30秒）自动更新
+            // loadVisitorPage(currentVisitorPage);
+        });
+        
+        // 接收访客离线通知
+        socket.on('visitor_offline', function(data) {
+            console.log('👋 访客离线:', data);
+            
+            // 如果是当前正在聊天的访客
+            if (data.visitor_id === currentVisitorId) {
+                showToast('访客已离线，会话自动关闭', 'info');
+                addSystemMessage('访客已离线');
+                
+                // 从访客列表移除
+                removeVisitorFromList(data.visitor_id);
+                
+                // 清空当前访客
+                currentVisitorId = null;
+                document.getElementById('chatInterface').style.display = 'none';
+                document.getElementById('chatContainer').style.display = 'flex';
+            } else {
+                // 其他访客离线，只更新列表
+                removeVisitorFromList(data.visitor_id);
+            }
+            
+            // ⚡ 性能优化：不再立即刷新，等待定时轮询（30秒）自动更新
+            // loadVisitorPage(currentVisitorPage);
+        });
+        
+        // ========== 权限被拒绝事件 ==========
+        // 🔥 实时负载更新监听
+        socket.on('workload_update', function(data) {
+            console.log('📊 实时负载更新:', data);
+            if (data.current !== undefined && data.max !== undefined) {
+                updateWorkloadDisplay(data.current, data.max);
+            }
+        });
+
+        socket.on('permission_denied', function(data) {
+            console.warn('⛔ 权限被拒绝:', data);
+            
+            // 显示错误提示
+            const errorMsg = data.msg || '您无权回复此访客';
+            showToast(errorMsg, 'error');
+            
+            // 禁用输入框
+            const messageInput = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+            if (messageInput) {
+                messageInput.disabled = true;
+                messageInput.placeholder = errorMsg;
+                messageInput.style.background = '#f5f5f5';
+            }
+            if (sendBtn) {
+                sendBtn.disabled = true;
+            }
+            
+            // 如果有分配的客服信息，显示提示
+            if (data.assigned_service) {
+                addSystemMessage(`该访客正由客服 ${data.assigned_service.nick_name} 接待，您无法发送消息`);
+            }
+        });
+    }
+
+    // 初始化输入框
+    function initInput() {
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+            
+            if (currentVisitorId) {
+                clearTimeout(typingTimeout);
+                
+                socket.emit('typing', {
+                    from_id: serviceId,
+                    from_type: 'service',
+                    from_name: serviceName,
+                    to_id: currentVisitorId,
+                    to_type: 'visitor',
+                    is_typing: true
+                });
+
+                typingTimeout = setTimeout(function() {
+                    socket.emit('typing', {
+                        from_id: serviceId,
+                        from_type: 'service',
+                        to_id: currentVisitorId,
+                        to_type: 'visitor',
+                        is_typing: false
+                    });
+                }, 1000);
+            }
+        });
+
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const keyword = e.target.value.toLowerCase();
+            const items = document.querySelectorAll('.visitor-item');
+            items.forEach(item => {
+                const name = item.dataset.name.toLowerCase();
+                item.style.display = name.includes(keyword) ? 'flex' : 'none';
+            });
+        });
+    }
+
+    // ⚡ 启动访客列表定时轮询（性能优化：替代频繁的事件驱动刷新）
+    function startVisitorListPolling() {
+        // 立即加载一次
+        console.log('⚡ 访客列表轮询已启动 (每30秒)');
+        
+        // 每30秒刷新一次当前页
+        visitorListPollingTimer = setInterval(function() {
+            if (currentVisitorPage >= 1 && !visitorListLoadPending) {
+                console.log('🔄 定时刷新访客列表（第' + currentVisitorPage + '页）');
+                loadVisitorPage(currentVisitorPage);
+            }
+        }, VISITOR_LIST_POLLING_INTERVAL);
+    }
+    
+    // 加载访客列表（分页，带防抖）
+    async function loadVisitorPage(page) {
+        try {
+            // ⚡ 防抖：如果有待处理的请求，跳过
+            if (visitorListLoadPending) {
+                console.log('⏭️ 跳过重复的访客列表加载请求');
+                return;
+            }
+            
+            if (page < 1 || page > totalVisitorPages && totalVisitorPages > 0) {
+                console.warn('页码超出范围:', page);
+                return;
+            }
+            
+            visitorListLoadPending = true; // 设置防抖标记
+            const response = await fetch(`/api/service/visitors/list?page=${page}&per_page=${visitorPerPage}`);
+            const data = await response.json();
+            
+            if (data.code === 0) {
+                currentVisitorPage = data.data.page;
+                totalVisitorPages = data.data.pages;
+                
+                // 清空当前列表
+                const visitorList = document.getElementById('visitorList');
+                visitorList.innerHTML = '';
+                
+                // 添加访客
+                const visitorData = data.data.visitors;
+                console.log('📝 收到访客数据:', visitorData);
+                if (visitorData && visitorData.length > 0) {
+                    visitorData.forEach((visitor, index) => {
+                        console.log(`📌 添加访客 ${index + 1}/${visitorData.length}:`, visitor.visitor_name, visitor);
+                        addVisitorToList(visitor);
+                    });
+                    
+                    // 显示分页控件
+                    document.getElementById('visitorPagination').style.display = 'block';
+                    document.getElementById('visitorTotal').textContent = data.data.total;
+                    document.getElementById('currentPageNum').textContent = currentVisitorPage;
+                    document.getElementById('totalPages').textContent = totalVisitorPages;
+                    
+                    // 更新分页按钮状态
+                    document.getElementById('prevPageBtn').disabled = currentVisitorPage <= 1;
+                    document.getElementById('nextPageBtn').disabled = currentVisitorPage >= totalVisitorPages;
+                    
+                    console.log(`✅ 完成添加，当前列表中有 ${document.querySelectorAll('.visitor-item').length} 个访客元素`);
+                } else {
+                    // 无访客时显示空状态
+                    visitorList.innerHTML = `
+                        <div class="empty-state">
+                            <div style="font-size: 48px;">👥</div>
+                            <h3>暂无会话</h3>
+                            <p>等待访客接入...</p>
+                        </div>
+                    `;
+                    document.getElementById('visitorPagination').style.display = 'none';
+                }
+                
+                console.log(`✅ 访客列表已加载: 第${currentVisitorPage}页，共${totalVisitorPages}页，总计${data.data.total}个访客`);
+                console.log('📋 visitorList HTML:', document.getElementById('visitorList').innerHTML.substring(0, 500));
+            } else {
+                console.error('加载访客列表失败:', data.msg);
+            }
+        } catch (error) {
+            console.error('加载访客列表异常:', error);
+        } finally {
+            visitorListLoadPending = false; // 清除防抖标记
+        }
+    }
+    
+    // ⚡ 访客置顶（性能优化：仅高亮显示，不刷新列表）
+    function bringVisitorToTop(visitorId) {
+        const visitorItem = document.getElementById('visitor_' + visitorId);
+        
+        if (visitorItem) {
+            // 如果访客在当前页面，直接高亮
+            console.log(`💡 收到访客 ${visitorId} 的新消息，高亮显示`);
+            visitorItem.style.transition = 'background-color 0.5s';
+            visitorItem.style.backgroundColor = '#fef3c7';  // 淡黄色高亮
+            setTimeout(() => {
+                visitorItem.style.backgroundColor = '';
+            }, 2000);
+        } else {
+            // 访客不在当前页，只显示提示（不刷新列表，等待定时轮询）
+            console.log(`📍 访客 ${visitorId} 不在当前页（第${currentVisitorPage}页），将在下次轮询时更新`);
+            // showToast(`访客 "${visitors[visitorId]?.visitor_name || visitorId}" 发来新消息`, 'info');
+        }
+        
+        // ⚡ 性能优化：不再立即刷新列表，等待定时轮询（30秒）自动更新
+        // 这样可以避免每次收到消息都触发API调用，大幅提升性能
+    }
+
+    // 添加访客到列表
+    function addVisitorToList(visitor, insertAtTop = false) {
+        const visitorId = visitor.visitor_id;
+        
+        if (!visitorId) {
+            console.warn('访客ID不存在:', visitor);
+            return;
+        }
+        
+        if (document.getElementById('visitor_' + visitorId)) {
+            console.log('访客已存在，更新信息:', visitorId);
+            // 更新现有访客信息
+            visitors[visitorId] = Object.assign(visitors[visitorId] || {}, visitor);
+            return;
+        }
+
+        const emptyState = document.querySelector('.visitor-list .empty-state');
+        if (emptyState) {
+            emptyState.remove();
+        }
+
+        // 确保访客名称存在
+        const visitorName = visitor.visitor_name || visitor.name || '访客' + visitorId.slice(-4);
+        visitor.visitor_name = visitorName;
+        
+        console.log('保存访客信息到visitors[' + visitorId + ']:', visitor);
+        visitors[visitorId] = visitor;
+
+        // 显示最后一条消息（如果有）
+        let lastMsgText = '等待接入...';
+        if (visitor.last_message) {
+            // ⚡ 格式化消息内容（带错误保护）
+            try {
+                lastMsgText = formatLastMessage(visitor.last_message);
+            } catch (e) {
+                console.error('格式化消息失败:', e, visitor.last_message);
+                lastMsgText = '[消息格式错误]';
+            }
+        } else if (visitor.visit_count > 1) {
+            lastMsgText = '老访客，点击查看历史';
+        }
+
+        const visitorEl = document.createElement('div');
+        visitorEl.className = 'visitor-item';
+        visitorEl.id = 'visitor_' + visitorId;
+        visitorEl.dataset.name = visitorName;
+        visitorEl.onclick = function() { selectVisitor(visitorId); };
+        
+        // 区分进行中的会话和历史会话
+        const isActive = visitor.is_active !== false && visitor.queue_state !== 'closed' && visitor.queue_state !== 'timeout';
+        const statusBadge = isActive ? '' : '<span style="font-size: 10px; padding: 2px 6px; background: #e5e7eb; color: #6b7280; border-radius: 10px; margin-left: 5px;">已结束</span>';
+        const itemStyle = isActive ? '' : 'opacity: 0.6;';
+        
+        // ⚡ 修复：始终使用API返回的最新未读数（而不是只在首次加载时初始化）
+        // 这样可以确保客服标记已读后，列表刷新时能正确清零未读数
+        if (visitor.unread_count !== undefined) {
+            unreadCounts[visitorId] = visitor.unread_count;
+            console.log(`📬 更新访客 ${visitorId} 的未读数: ${visitor.unread_count}`);
+        }
+        
+        // ⚡ 检查该访客的未读数
+        const unreadCount = unreadCounts[visitorId] || 0;
+        const unreadDisplay = unreadCount > 0 ? 'block' : 'none';
+        
+        visitorEl.style.cssText = itemStyle;
+        visitorEl.innerHTML = `
+            <div class="visitor-avatar" style="${isActive ? '' : 'background: #9ca3af;'}">${visitorName.charAt(0).toUpperCase()}</div>
+            <div class="visitor-info">
+                <div class="visitor-name">${visitorName}${statusBadge}</div>
+                <div class="visitor-last-msg">${lastMsgText}</div>
+            </div>
+            <span class="unread-badge" style="display: ${unreadDisplay};">${unreadCount}</span>
+        `;
+
+        const visitorList = document.getElementById('visitorList');
+        if (insertAtTop) {
+            // 插入到列表顶部
+            visitorList.insertBefore(visitorEl, visitorList.firstChild);
+            console.log(`✅ 访客 ${visitorName} (${visitorId}) 已插入到列表顶部，未读数: ${unreadCount}`);
+        } else {
+            // 添加到列表底部
+            visitorList.appendChild(visitorEl);
+            console.log(`✅ 访客 ${visitorName} (${visitorId}) 已添加到列表底部，未读数: ${unreadCount}`);
+        }
+    }
+
+    // ========== Tab切换功能 ==========
+    let currentTab = 'current';  // 'current' 或 'queue'
+    
+    // 切换Tab
+    function switchTab(tabName) {
+        currentTab = tabName;
+        
+        // 更新Tab样式
+        document.querySelectorAll('.chat-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        event.target.closest('.chat-tab').classList.add('active');
+        
+        // 切换列表显示
+        const visitorList = document.getElementById('visitorList');
+        const queueList = document.getElementById('queueList');
+        
+        if (tabName === 'current') {
+            visitorList.style.display = 'block';
+            queueList.style.display = 'none';
+        } else {
+            visitorList.style.display = 'none';
+            queueList.style.display = 'block';
+            loadQueueList();  // 加载排队列表
+        }
+    }
+    
+    // 加载排队列表
+    async function loadQueueList() {
+        try {
+            const response = await fetch('/api/queue/list?status=waiting');
+            const result = await response.json();
+            
+            if (result.code === 0) {
+                const queueList = document.getElementById('queueList');
+                queueList.innerHTML = '';
+                
+                const queues = result.data.list || [];
+                document.getElementById('queueCount').textContent = queues.length;
+                
+                if (queues.length === 0) {
+                    queueList.innerHTML = `
+                        <div class="empty-state">
+                            <div style="font-size: 48px;">⏳</div>
+                            <h3>暂无排队</h3>
+                            <p>没有访客在排队...</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                queues.forEach((queue, index) => {
+                    const queueItem = document.createElement('div');
+                    queueItem.className = 'visitor-item queue-item';
+                    
+                    // 优先级标识
+                    let priorityBadge = '';
+                    let priorityClass = '';
+                    if (queue.priority === 2) {
+                        priorityBadge = '<span class="priority-badge priority-urgent">🔴 紧急</span>';
+                        priorityClass = 'priority-urgent-item';
+                    } else if (queue.priority === 1) {
+                        priorityBadge = '<span class="priority-badge priority-vip">⭐ VIP</span>';
+                        priorityClass = 'priority-vip-item';
+                    }
+                    
+                    // 预计等待时间
+                    const waitMinutes = Math.ceil((queue.estimated_wait_time || 0) / 60);
+                    const waitTimeText = queue.estimated_wait_time > 0 
+                        ? `预计等待 ${waitMinutes} 分钟` 
+                        : '即将接入';
+                    
+                    // 排队位置
+                    const position = index + 1;
+                    
+                    queueItem.classList.add(priorityClass);
+                    queueItem.innerHTML = `
+                        <div class="visitor-avatar" style="background: ${queue.priority === 2 ? '#ef4444' : queue.priority === 1 ? '#f59e0b' : 'var(--primary-color)'}">
+                            ${queue.visitor_name ? queue.visitor_name.charAt(0) : '👤'}
+                        </div>
+                        <div class="visitor-info">
+                            <div class="visitor-name">
+                                <span style="color: #9ca3af; font-size: 12px; margin-right: 4px;">#${position}</span>
+                                ${queue.visitor_name || `访客${queue.visitor_id}`}
+                                ${priorityBadge}
+                            </div>
+                            <div class="visitor-last-msg" style="display: flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-clock" style="font-size: 11px;"></i> ${waitTimeText}
+                            </div>
+                        </div>
+                        <div class="visitor-status">
+                            <button class="action-btn" onclick="acceptQueue(${queue.qid})" style="background: #10b981; color: white;">
+                                <i class="fas fa-check"></i> 接入
+                            </button>
+                        </div>
+                    `;
+                    queueList.appendChild(queueItem);
+                });
+            }
+        } catch (error) {
+            console.error('加载排队列表失败:', error);
+        }
+    }
+    
+    // 接入排队访客
+    async function acceptQueue(queueId) {
+        try {
+            const response = await fetch('/api/queue/accept', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    queue_id: queueId
+                })
+            });
+            
+            const result = await response.json();
+            if (result.code === 0) {
+                showToast('接入成功！', 'success');
+                // 刷新列表
+                loadQueueList();
+                switchTab('current');
+            } else {
+                showToast('接入失败: ' + result.msg, 'error');
+            }
+        } catch (error) {
+            console.error('接入失败:', error);
+            showToast('接入失败: ' + error.message, 'error');
+        }
+    }
+    
+    // ✅ 管理员转接访客到自己
+    async function transferVisitorToMe() {
+        if (!currentVisitorId) {
+            showToast('请先选择一个访客', 'warning');
+            return;
+        }
+        
+        try {
+            const transferBtn = document.getElementById('transferToMeBtn');
+            if (transferBtn) {
+                transferBtn.disabled = true;
+                transferBtn.textContent = '转接中...';
+            }
+            
+            const response = await fetch('/api/service/queue/transfer-to-me', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    visitor_id: currentVisitorId
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.code === 0) {
+                showToast('✅ 转接成功！', 'success');
+                
+                // 隐藏转接提示
+                const transferHint = document.getElementById('transferHint');
+                if (transferHint) {
+                    transferHint.style.display = 'none';
+                }
+                
+                // 解锁输入框
+                const messageInput = document.getElementById('messageInput');
+                const sendBtn = document.getElementById('sendBtn');
+                if (messageInput) {
+                    messageInput.disabled = false;
+                    messageInput.placeholder = '输入消息...';
+                    messageInput.style.background = '';
+                }
+                if (sendBtn) {
+                    sendBtn.disabled = false;
+                }
+                
+                // 显示系统消息
+                addSystemMessage('✅ 访客已转接到您');
+                
+                // 播放提示音
+                playNotificationSound();
+            } else {
+                showToast('转接失败: ' + result.msg, 'error');
+                
+                // 恢复按钮状态
+                if (transferBtn) {
+                    transferBtn.disabled = false;
+                    transferBtn.textContent = '🔄 转接到我';
+                }
+            }
+            
+        } catch (error) {
+            console.error('转接失败:', error);
+            showToast('转接失败: ' + error.message, 'error');
+            
+            // 恢复按钮状态
+            const transferBtn = document.getElementById('transferToMeBtn');
+            if (transferBtn) {
+                transferBtn.disabled = false;
+                transferBtn.textContent = '🔄 转接到我';
+            }
+        }
+    }
+    
+    // ✅ 显示转接对话框（选择客服）
+    async function showTransferDialog() {
+        if (!currentVisitorId) {
+            showToast('请先选择一个访客', 'warning');
+            return;
+        }
+        
+        try {
+            // 获取在线客服列表
+            const response = await fetch('/api/service/list?state=online');
+            const result = await response.json();
+            
+            if (result.code !== 0) {
+                showToast('获取客服列表失败', 'error');
+                return;
+            }
+            
+            const services = result.data || [];
+            const currentServiceId = serviceId; // 当前登录的客服ID
+            
+            // ✅ 只排除自己，保留其他所有客服（包括当前接待该访客的客服）
+            const currentVisitor = visitors[currentVisitorId];
+            const currentAssignedId = currentVisitor?.service_id;
+            
+            const availableServices = services.filter(s => 
+                s.service_id !== currentServiceId  // 只排除自己
+            );
+            
+            if (availableServices.length === 0) {
+                showToast('没有可转接的客服', 'warning');
+                return;
+            }
+            
+            // 构建选项HTML
+            let optionsHTML = '';
+            availableServices.forEach(service => {
+                const levelBadge = service.level === 'super_manager' ? '👑' : 
+                                 service.level === 'manager' ? '⭐' : '👤';
+                const statusColor = service.state === 'online' ? '#10b981' : '#9ca3af';
+                
+                // ✅ 标记当前接待该访客的客服
+                const isCurrentHandler = service.service_id === currentAssignedId;
+                const currentBadge = isCurrentHandler ? '<span style="font-size: 10px; padding: 2px 6px; background: #fbbf24; color: #92400e; border-radius: 10px; margin-left: 5px;">当前接待</span>' : '';
+                
+                optionsHTML += `
+                    <div class="service-option" onclick="selectServiceForTransfer(${service.service_id}, '${service.nick_name}')" 
+                         style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%); display: flex; align-items: center; justify-content: center; font-size: 18px;">
+                            ${levelBadge}
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #1f2937;">
+                                ${service.nick_name}${currentBadge}
+                            </div>
+                            <div style="font-size: 12px; color: #6b7280;">当前接待: ${service.current_chat_count || 0} 人</div>
+                        </div>
+                        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></div>
+                    </div>
+                `;
+            });
+            
+            // 创建对话框
+            const dialog = document.createElement('div');
+            dialog.id = 'transferDialog';
+            dialog.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+                    <div style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                        <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #1f2937;">选择转接客服</h3>
+                        <div id="serviceOptions">
+                            ${optionsHTML}
+                        </div>
+                        <button onclick="closeTransferDialog()" 
+                                style="margin-top: 16px; width: 100%; padding: 10px; background: #e5e7eb; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                            取消
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+            
+        } catch (error) {
+            console.error('显示转接对话框失败:', error);
+            showToast('显示转接对话框失败', 'error');
+        }
+    }
+    
+    // 选择客服进行转接
+    async function selectServiceForTransfer(toServiceId, toServiceName) {
+        if (!currentVisitorId) {
+            showToast('请先选择一个访客', 'warning');
+            return;
+        }
+        
+        // 关闭对话框
+        closeTransferDialog();
+        
+        try {
+            // 查找队列ID
+            const currentVisitor = visitors[currentVisitorId];
+            if (!currentVisitor) {
+                showToast('访客信息不存在', 'error');
+                return;
+            }
+            
+            // ✅ 检查是否转接给当前已接待的客服
+            if (currentVisitor.service_id === toServiceId) {
+                showToast(`该访客已由 ${toServiceName} 接待`, 'info');
+                return;
+            }
+            
+            // 调用转接API
+            const response = await fetch('/api/service/queue/transfer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    queue_id: currentVisitor.queue_id || 0,
+                    to_service_id: toServiceId
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.code === 0) {
+                // ✅ 区分是真正转接还是已经由目标客服接待
+                if (result.msg && result.msg.includes('已由目标客服接待')) {
+                    showToast(`该访客已由 ${toServiceName} 接待`, 'info');
+                    return; // 无需执行后续的UI更新
+                }
+                
+                showToast(`✅ 已转接给 ${toServiceName}`, 'success');
+                
+                // 隐藏转接提示
+                const transferHint = document.getElementById('transferHint');
+                if (transferHint) {
+                    transferHint.style.display = 'none';
+                }
+                
+                // 锁定输入框
+                const messageInput = document.getElementById('messageInput');
+                const sendBtn = document.getElementById('sendBtn');
+                if (messageInput) {
+                    messageInput.disabled = true;
+                    messageInput.placeholder = `该访客已转接给 ${toServiceName}`;
+                    messageInput.style.background = '#f5f5f5';
+                }
+                if (sendBtn) {
+                    sendBtn.disabled = true;
+                }
+                
+                // 显示系统消息
+                addSystemMessage(`✅ 访客已转接给 ${toServiceName}`);
+                
+            } else {
+                showToast('转接失败: ' + result.msg, 'error');
+            }
+            
+        } catch (error) {
+            console.error('转接失败:', error);
+            showToast('转接失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 关闭转接对话框
+    function closeTransferDialog() {
+        const dialog = document.getElementById('transferDialog');
+        if (dialog) {
+            dialog.remove();
+        }
+    }
+    
+    // 格式化等待时间
+    function formatWaitTime(createdAt) {
+        const now = new Date();
+        const created = new Date(createdAt);
+        const diffMs = now - created;
+        const diffMins = Math.floor(diffMs / 60000);
+        
+        if (diffMins < 1) return '刚刚';
+        if (diffMins < 60) return `${diffMins}分钟`;
+        const diffHours = Math.floor(diffMins / 60);
+        return `${diffHours}小时${diffMins % 60}分钟`;
+    }
+    
+    // 智能刷新队列数据
+    let queueListRefreshInterval = null;
+    
+    function startQueueListRefresh() {
+        if (queueListRefreshInterval) {
+            clearInterval(queueListRefreshInterval);
+        }
+        
+        // 智能间隔：队列标签页打开且有队列时5秒，其他情况30秒
+        const interval = (currentTab === 'queue' && currentQueueSize > 0) ? 5000 : 30000;
+        
+        console.log(`🔄 队列列表刷新（${interval/1000}秒轮询）`);
+        queueListRefreshInterval = setInterval(() => {
+            if (currentTab === 'queue') {
+                loadQueueList();
+            }
+            // ✅ 更新所有统计（包括当前会话数、在线访客、待处理等）
+            updateStats();
+        }, interval);
+    }
+    
+    // 启动队列列表刷新
+    startQueueListRefresh();
+    
+    // ✅ 首次立即更新所有统计（替代单独的会话数更新）
+    updateStats();
+
+    // 选择访客
+    function selectVisitor(visitorId) {
+        currentVisitorId = visitorId;
+        const visitor = visitors[visitorId];
+        
+        // ✅ 重置分页状态
+        chatOffset = 0;
+        chatHasMore = false;
+        isLoadingHistory = false;
+
+        document.querySelectorAll('.visitor-item').forEach(el => {
+            el.classList.remove('active');
+        });
+        document.getElementById('visitor_' + visitorId).classList.add('active');
+
+        // ⚡ 清零全局未读计数
+        unreadCounts[visitorId] = 0;
+        
+        const unreadBadge = document.querySelector('#visitor_' + visitorId + ' .unread-badge');
+        if (unreadBadge) {
+            unreadBadge.style.display = 'none';
+            unreadBadge.textContent = '0';
+        }
+        
+        console.log(`✅ 已选择访客${visitorId}，未读数已清零`);
+
+        document.getElementById('chatContainer').style.display = 'none';
+        document.getElementById('chatInterface').style.display = 'flex';
+
+        document.getElementById('currentVisitorName').textContent = visitor.visitor_name;
+        document.getElementById('currentVisitorAvatar').textContent = visitor.visitor_name.charAt(0).toUpperCase();
+        document.getElementById('currentVisitorInfo').textContent = '访客ID: ' + visitorId;
+
+        document.getElementById('chatMessages').innerHTML = '';
+        loadChatHistory(visitorId);
+        
+        // 显示黑名单按钮并检查状态
+        checkBlacklistStatus(visitorId);
+        
+        // ⚡ 如果访客信息面板已打开，自动更新内容
+        const infoPanel = document.getElementById('visitorInfoPanel');
+        if (infoPanel && infoPanel.style.display === 'flex') {
+            updateVisitorInfoPanel(visitorId);
+        }
+        
+        // ========== 检查回复权限 ==========
+        checkReplyPermission(visitorId);
+    }
+    
+    // 检查回复权限
+    async function checkReplyPermission(visitorId) {
+        try {
+            const response = await fetch('/api/assignment/check-reply-permission', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ visitor_id: visitorId })
+            });
+            
+            const result = await response.json();
+            const messageInput = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+            
+            if (result.code === 0) {
+                const { can_reply, reason, assigned_service } = result.data;
+                
+                if (!can_reply) {
+                    // 无权限，禁用输入
+                    console.warn('⛔ 无回复权限:', reason);
+                    if (messageInput) {
+                        messageInput.disabled = true;
+                        messageInput.placeholder = reason || '您无权回复此访客';
+                        messageInput.style.background = '#f5f5f5';
+                    }
+                    if (sendBtn) {
+                        sendBtn.disabled = true;
+                    }
+                    
+                    // ✅ 管理员显示"转接到我"按钮
+                    const isManager = {{ 'true' if current_user.level in ['super_manager', 'manager'] else 'false' }};
+                    const transferHint = document.getElementById('transferHint');
+                    const transferHintText = document.getElementById('transferHintText');
+                    const transferToMeBtn = document.getElementById('transferToMeBtn');
+                    
+                    if (isManager && transferHint && transferHintText && assigned_service) {
+                        transferHintText.textContent = `该访客正由客服 ${assigned_service.nick_name} 接待`;
+                        transferHint.style.display = 'block';
+                        
+                        // ✅ 重置按钮状态（防止上次转接后按钮还是禁用状态）
+                        if (transferToMeBtn) {
+                            transferToMeBtn.disabled = false;
+                            transferToMeBtn.textContent = '🔄 转接到我';
+                        }
+                        
+                        console.log('✅ 管理员转接按钮已显示（checkReplyPermission）');
+                    }
+                    
+                    // 显示提示消息
+                    if (assigned_service) {
+                        addSystemMessage(`⚠️ 该访客正由客服 ${assigned_service.nick_name} 接待，您只能查看不能回复`);
+                    } else {
+                        addSystemMessage(`⚠️ ${reason}`);
+                    }
+                } else {
+                    // 有权限，启用输入
+                    console.log('✅ 有回复权限');
+                    
+                    // ✅ 隐藏转接提示
+                    const transferHint = document.getElementById('transferHint');
+                    if (transferHint) {
+                        transferHint.style.display = 'none';
+                    }
+                    
+                    // ========== 清除之前的权限错误提示消息 ==========
+                    const chatMessages = document.getElementById('chatMessages');
+                    if (chatMessages) {
+                        const systemMessages = chatMessages.querySelectorAll('.system-message');
+                        systemMessages.forEach(msg => {
+                            const text = msg.textContent || '';
+                            if (text.includes('无权回复') || text.includes('只能查看') || 
+                                text.includes('已分配给其他客服') || text.includes('正由客服')) {
+                                msg.remove();
+                                console.log('🗑️ 已清除旧的权限错误提示');
+                            }
+                        });
+                    }
+                    
+                    if (messageInput) {
+                        messageInput.disabled = false;
+                        messageInput.placeholder = '输入消息...';
+                        messageInput.style.background = '#fff';
+                    }
+                    if (sendBtn) {
+                        sendBtn.disabled = false;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('权限检查失败:', error);
+        }
+    }
+
+    // 聊天记录分页变量
+    let chatOffset = 0;
+    let chatHasMore = false;
+    let isLoadingHistory = false;
+    
+    // ⚡ 分批渲染配置
+    const BATCH_SIZE = 10; // 每批渲染10条消息
+    const BATCH_DELAY = 50; // 每批延迟50ms，避免阻塞UI
+    const HISTORY_LIMIT = 30; // 单次加载30条（原50条）
+    const DEBUG_MODE = false; // 生产环境关闭调试日志
+    
+    // ⚡ 显示/隐藏加载指示器
+    function showHistoryLoading(progress = '') {
+        const indicator = document.getElementById('historyLoadingIndicator');
+        const progressText = document.getElementById('loadingProgressText');
+        if (indicator) {
+            indicator.style.display = 'block';
+            if (progress) {
+                progressText.textContent = progress;
+            } else {
+                progressText.textContent = '正在加载历史消息...';
+            }
+        }
+    }
+    
+    function hideHistoryLoading() {
+        const indicator = document.getElementById('historyLoadingIndicator');
+        if (indicator) {
+            indicator.style.animation = 'fadeOut 0.3s';
+            setTimeout(() => {
+                indicator.style.display = 'none';
+                indicator.style.animation = '';
+            }, 300);
+        }
+    }
+    
+    // ⚡ 分批渲染消息（优化性能，避免一次性渲染大量DOM造成卡顿）
+    function renderMessagesInBatches(messages, container, insertAtTop = false) {
+        return new Promise((resolve) => {
+            const totalCount = messages.length;
+            let currentIndex = 0;
+            
+            function renderBatch() {
+                const batchEnd = Math.min(currentIndex + BATCH_SIZE, totalCount);
+                const fragment = document.createDocumentFragment();
+                
+                // 渲染当前批次
+                for (let i = currentIndex; i < batchEnd; i++) {
+                    const msgEl = createMessageElement(messages[i]);
+                    fragment.appendChild(msgEl);
+                }
+                
+                // 插入DOM
+                if (insertAtTop) {
+                    container.insertBefore(fragment, container.firstChild.nextSibling); // 插在加载指示器后面
+                } else {
+                    container.appendChild(fragment);
+                }
+                
+                currentIndex = batchEnd;
+                
+                // 更新进度
+                showHistoryLoading(`正在加载 ${currentIndex}/${totalCount} 条消息...`);
+                
+                // 继续渲染下一批，或完成
+                if (currentIndex < totalCount) {
+                    // 使用 requestAnimationFrame 优化渲染时机
+                    requestAnimationFrame(() => {
+                        setTimeout(renderBatch, BATCH_DELAY);
+                    });
+                } else {
+                    hideHistoryLoading();
+                    resolve();
+                }
+            }
+            
+            // 开始渲染第一批
+            showHistoryLoading(`正在加载 0/${totalCount} 条消息...`);
+            requestAnimationFrame(renderBatch);
+        });
+    }
+    
+    // ⚡ 加载聊天历史（优化版：分批渲染，加载动画）
+    async function loadChatHistory(visitorId, isLoadMore = false) {
+        if (isLoadingHistory) return;
+        isLoadingHistory = true;
+        
+        const messagesContainer = document.getElementById('chatMessages');
+        const oldScrollHeight = messagesContainer.scrollHeight;
+        
+        // 显示加载指示器
+        if (isLoadMore) {
+            showHistoryLoading();
+        }
+        
+        try {
+            // ⚡ 优化：减少单次加载量（50 → 30条）
+            const response = await fetch(`/api/service/chat/history?visitor_id=${visitorId}&limit=${HISTORY_LIMIT}&offset=${chatOffset}`);
+            const data = await response.json();
+            
+            if (DEBUG_MODE) console.log('📥 历史消息数据:', data);
+            
+            if (data.code === 0 && data.data && data.data.length > 0) {
+                chatHasMore = data.has_more || false;
+                
+                // 准备消息数据（添加日期分隔符）
+                const messagesWithDates = [];
+                let lastDate = null;
+                
+                data.data.forEach(msg => {
+                    // 添加日期分隔符
+                    const currentDate = formatDateOnly(msg.created_at || msg.timestamp);
+                    if (currentDate && currentDate !== lastDate) {
+                        messagesWithDates.push({
+                            type: 'date-separator',
+                            timestamp: msg.created_at || msg.timestamp
+                        });
+                        lastDate = currentDate;
+                    }
+                    messagesWithDates.push(msg);
+                });
+                
+                if (isLoadMore) {
+                    // ⚡ 无感加载更多：批量渲染后一次性插入
+                    const fragment = document.createDocumentFragment();
+                    
+                    // 批量创建所有消息元素
+                    for (const msg of messagesWithDates) {
+                        if (msg.type === 'date-separator') {
+                            fragment.appendChild(createDateSeparator(msg.timestamp));
+                        } else {
+                            fragment.appendChild(createMessageElement(msg));
+                        }
+                    }
+                    
+                    // 一次性插入到顶部（在第一个子元素之前）
+                    const firstChild = messagesContainer.firstChild;
+                    messagesContainer.insertBefore(fragment, firstChild);
+                    
+                    // ✅ 保持滚动位置
+                    const newScrollHeight = messagesContainer.scrollHeight;
+                    messagesContainer.scrollTop = newScrollHeight - oldScrollHeight;
+                    
+                    hideHistoryLoading();
+                } else {
+                    // 初次加载 - 重置日期追踪
+                    lastMessageDate = null;
+                    
+                    // ⚡ 无感渲染：添加loading类，避免看到渲染过程
+                    messagesContainer.classList.add('loading');
+                    
+                    // 使用 DocumentFragment 批量渲染所有消息
+                    const fragment = document.createDocumentFragment();
+                    for (const msg of messagesWithDates) {
+                        if (msg.type === 'date-separator') {
+                            fragment.appendChild(createDateSeparator(msg.timestamp));
+                        } else {
+                            fragment.appendChild(createMessageElement(msg));
+                        }
+                    }
+                    
+                    // 一次性插入DOM
+                    messagesContainer.appendChild(fragment);
+                    
+                    // 滚动到底部
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    
+                    // 使用 requestAnimationFrame 确保渲染完成后再显示
+                    requestAnimationFrame(() => {
+                        messagesContainer.classList.remove('loading');
+                        messagesContainer.classList.add('loaded');
+                        setTimeout(() => messagesContainer.classList.remove('loaded'), 150);
+                    });
+                    
+                    hideHistoryLoading();
+                }
+                
+                chatOffset += data.data.length;
+                if (DEBUG_MODE) console.log(`✅ 已加载 ${data.data.length} 条消息，总偏移量: ${chatOffset}`);
+            } else if (!isLoadMore) {
+                // 没有历史消息
+                addSystemMessage('会话开始');
+                hideHistoryLoading();
+            } else {
+                hideHistoryLoading();
+            }
+            
+        } catch (error) {
+            console.error('❌ 加载历史消息失败:', error);
+            if (!isLoadMore) {
+                addSystemMessage('会话开始');
+            }
+            hideHistoryLoading();
+        } finally {
+            isLoadingHistory = false;
+        }
+    }
+    
+    // 创建消息元素（不直接添加到DOM）- 用于加载历史消息
+    function createMessageElement(msg) {
+        // ⚡ 支持日期分隔符
+        if (msg.type === 'date-separator') {
+            return createDateSeparator(msg.timestamp);
+        }
+        
+        const messageEl = document.createElement('div');
+        const msgType = msg.from_type || (msg.direction === 'to_visitor' ? 'service' : 'visitor');
+        messageEl.className = 'message ' + msgType;
+        
+        const time = formatTime(msg.created_at || msg.timestamp);
+        let avatar, name = '';
+        
+        if (msgType === 'robot') {
+            avatar = '🤖';
+            name = '<div class="message-name">智能助手</div>';
+        } else if (msgType === 'service') {
+            avatar = '👨‍💼';
+            name = '';
+        } else {
+            // ✅ 访客消息显示昵称
+            avatar = '👤';
+            const visitorName = msg.from_name || (currentVisitorId && visitors[currentVisitorId]?.visitor_name) || '访客';
+            name = `<div class="message-name" style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">${visitorName}</div>`;
+        }
+        
+        // 🆕 优先检查 msg_type 字段
+        let messageContent = msg.content;
+        
+        // ⚡ 条件化调试日志（生产环境关闭）
+        if (DEBUG_MODE) {
+            console.log('📨 渲染历史消息:', {
+                id: msg.id,
+                msg_type: msg.msg_type,
+                content_preview: msg.content.substring(0, 100),
+                from_type: msgType
+            });
+        }
+        
+        if (msg.msg_type === 'file') {
+            // 如果msg_type是file，一定要解析JSON
+            if (DEBUG_MODE) console.log('✅ 检测到文件消息，msg_type=file');
+            try {
+                const parsedContent = JSON.parse(msg.content);
+                if (DEBUG_MODE) console.log('📦 解析后的文件内容:', parsedContent);
+                if (parsedContent.url) {
+                    // 判断是图片还是文件
+                    if (parsedContent.mime_type && parsedContent.mime_type.startsWith('image/')) {
+                        // 渲染图片：点击弹出预览窗口
+                        if (DEBUG_MODE) console.log('🖼️ 渲染图片:', parsedContent.url);
+                        messageContent = `<img src="${parsedContent.url}" alt="图片" style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;" onclick="showImagePreview('${parsedContent.url}')">`;
+                    } else {
+                        // 渲染文件链接
+                        if (DEBUG_MODE) console.log('📎 渲染文件链接:', parsedContent.url);
+                        const fileSize = parsedContent.size ? formatFileSize(parsedContent.size) : '';
+                        messageContent = `
+                            <a href="${parsedContent.url}" target="_blank" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--primary-color);">
+                                <span style="font-size: 24px;">📎</span>
+                                <div>
+                                    <div style="font-weight: 500;">查看文件</div>
+                                    ${fileSize ? `<div style="font-size: 12px; color: #9ca3af;">${fileSize}</div>` : ''}
+                                </div>
+                            </a>
+                        `;
+                    }
+                }
+            } catch (e) {
+                console.error('❌ 解析文件消息失败:', e, msg.content);
+                messageContent = '[文件消息解析失败]';
+            }
+        } else {
+            // 文本消息，尝试解析JSON（兼容旧数据）
+            try {
+                const parsedContent = JSON.parse(msg.content);
+                // 🆕 支持 type='file' 和 type='image' 两种格式
+                if ((parsedContent.type === 'file' || parsedContent.type === 'image') && parsedContent.url) {
+                    if (DEBUG_MODE) console.log('🔄 兼容模式：检测到文件格式（无msg_type），type=' + parsedContent.type);
+                    // 判断是图片还是文件
+                    if (parsedContent.mime_type && parsedContent.mime_type.startsWith('image/')) {
+                        if (DEBUG_MODE) console.log('🖼️ 渲染图片（兼容）:', parsedContent.url);
+                        messageContent = `<img src="${parsedContent.url}" alt="图片" style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;" onclick="showImagePreview('${parsedContent.url}')">`;
+                    } else {
+                        if (DEBUG_MODE) console.log('📎 渲染文件（兼容）:', parsedContent.url);
+                        const fileSize = parsedContent.size ? formatFileSize(parsedContent.size) : '';
+                        messageContent = `
+                            <a href="${parsedContent.url}" target="_blank" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--primary-color);">
+                                <span style="font-size: 24px;">📎</span>
+                                <div>
+                                    <div style="font-weight: 500;">查看文件</div>
+                                    ${fileSize ? `<div style="font-size: 12px; color: #9ca3af;">${fileSize}</div>` : ''}
+                                </div>
+                            </a>
+                        `;
+                    }
+                } else {
+                    // 不是文件格式的JSON，直接转义显示
+                    messageContent = escapeHtml(msg.content);
+                }
+            } catch (e) {
+                // 不是JSON格式，检查是否包含HTML标签
+                if (/<[^>]+>/.test(msg.content)) {
+                    // 包含HTML标签，使用sanitizeHtml清洁后渲染
+                    messageContent = sanitizeHtml(msg.content);
+                } else {
+                    // 普通文本，转义处理
+                    messageContent = escapeHtml(msg.content);
+                }
+            }
+        }
+        
+        messageEl.innerHTML = `
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-content">
+                ${name}
+                <div class="message-bubble">${messageContent}</div>
+                <div class="message-time">${time}</div>
+            </div>
+        `;
+        
+        return messageEl;
+    }
+    
+    // 渲染消息（helper函数）
+    function renderMessage(msg) {
+        // ⚡ 修复：处理日期分隔符类型
+        if (msg.type === 'date-separator') {
+            const messagesContainer = document.getElementById('chatMessages');
+            const separator = createDateSeparator(msg.timestamp);
+            messagesContainer.appendChild(separator);
+            return;
+        }
+        
+        const msgType = msg.from_type || (msg.direction === 'to_visitor' ? 'service' : 'visitor');
+        
+        if (msgType === 'robot') {
+            addRobotMessage(msg.content, msg.created_at || msg.timestamp);
+        } else {
+            // 传递 msg_type 参数，确保文件消息正确渲染
+            addMessage(msg.content, msgType, msg.created_at || msg.timestamp, msg.msg_type);
+        }
+    }
+    
+    // 初始化聊天滚动监听（需要在DOM加载后调用）
+    function initChatScroll() {
+        const chatMessages = document.getElementById('chatMessages');
+        if (chatMessages) {
+            chatMessages.addEventListener('scroll', function() {
+                if (this.scrollTop === 0 && chatHasMore && !isLoadingHistory && currentVisitorId) {
+                    loadChatHistory(currentVisitorId, true);
+                }
+            });
+        }
+    }
+
+    // 发送消息
+    function sendMessage() {
+        const messageInput = document.getElementById('messageInput');
+        const content = messageInput.value.trim();
+
+        if (!content || !currentVisitorId) return;
+
+        if (!socket || !socket.connected) {
+            showToast('未连接到服务器', 'warning');
+            return;
+        }
+
+        addMessage(content, 'service', new Date());
+
+        socket.emit('send_message', {
+            from_id: serviceId,
+            from_type: 'service',
+            from_name: serviceName,
+            to_id: currentVisitorId,
+            to_type: 'visitor',
+            content: content,
+            msg_type: 'text',
+            timestamp: new Date().toISOString()
+        });
+
+        messageInput.value = '';
+        messageInput.style.height = 'auto';
+    }
+
+    // 快捷回复
+    function sendQuickReply(content) {
+        if (!currentVisitorId) {
+            showToast('请先选择一个访客', 'warning');
+            return;
+        }
+        document.getElementById('messageInput').value = content;
+        sendMessage();
+    }
+
+    // 添加消息到聊天界面
+    function addMessage(content, type, timestamp, msgType = null, fromName = null) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageEl = document.createElement('div');
+        messageEl.className = 'message ' + type;
+        
+        const time = formatTime(timestamp);
+        const avatar = type === 'service' ? '👨‍💼' : '👤';
+        
+        // ✅ 获取访客昵称（带ID）
+        let visitorNameWithId = '';
+        if (type === 'visitor') {
+            if (fromName) {
+                visitorNameWithId = fromName;
+            } else if (currentVisitorId) {
+                const visitor = visitors[currentVisitorId];
+                visitorNameWithId = visitor?.visitor_name || '访客';
+            } else {
+                visitorNameWithId = '访客';
+            }
+        }
+        
+        // 🆕 优先检查 msgType 参数（从历史消息传来）
+        let messageContent = content;
+        
+        if (msgType === 'file') {
+            // 如果是文件类型，一定要解析JSON
+            try {
+                const parsedContent = JSON.parse(content);
+                if (parsedContent.url) {
+                    // 判断是图片还是文件
+                    if (parsedContent.mime_type && parsedContent.mime_type.startsWith('image/')) {
+                        // 渲染图片
+                        messageContent = `<img src="${parsedContent.url}" alt="图片" style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;" onclick="showImagePreview('${parsedContent.url}')">`;
+                    } else {
+                        // 渲染文件链接
+                        const fileSize = parsedContent.size ? formatFileSize(parsedContent.size) : '';
+                        messageContent = `
+                            <a href="${parsedContent.url}" target="_blank" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--primary-color);">
+                                <span style="font-size: 24px;">📎</span>
+                                <div>
+                                    <div style="font-weight: 500;">查看文件</div>
+                                    ${fileSize ? `<div style="font-size: 12px; color: #9ca3af;">${fileSize}</div>` : ''}
+                                </div>
+                            </a>
+                        `;
+                    }
+                }
+            } catch (e) {
+                console.error('解析文件消息失败:', e);
+                messageContent = '[文件消息]';
+            }
+        } else {
+            // 尝试解析JSON格式的内容（图片、文件等）- 兼容旧数据
+            try {
+                const parsedContent = JSON.parse(content);
+                // 🆕 支持 type='file' 和 type='image' 两种格式
+                if ((parsedContent.type === 'file' || parsedContent.type === 'image') && parsedContent.url) {
+                    // 判断是图片还是文件
+                    if (parsedContent.mime_type && parsedContent.mime_type.startsWith('image/')) {
+                        // 渲染图片
+                        messageContent = `<img src="${parsedContent.url}" alt="图片" style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;" onclick="showImagePreview('${parsedContent.url}')">`;
+                    } else {
+                        // 渲染文件链接
+                        const fileSize = parsedContent.size ? formatFileSize(parsedContent.size) : '';
+                        messageContent = `
+                            <a href="${parsedContent.url}" target="_blank" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--primary-color);">
+                                <span style="font-size: 24px;">📎</span>
+                                <div>
+                                    <div style="font-weight: 500;">查看文件</div>
+                                    ${fileSize ? `<div style="font-size: 12px; color: #9ca3af;">${fileSize}</div>` : ''}
+                                </div>
+                            </a>
+                        `;
+                    }
+                } else {
+                    // 不是文件格式，保持原内容
+                    messageContent = content;
+                }
+            } catch (e) {
+                // 不是JSON格式，保持原内容
+                messageContent = content;
+            }
+        }
+        
+        // ✅ 访客消息显示昵称
+        if (type === 'visitor') {
+            messageEl.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-name" style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">${visitorNameWithId}</div>
+                    <div class="message-bubble">${messageContent}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+        } else {
+            messageEl.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-bubble">${messageContent}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+        }
+
+        messagesContainer.appendChild(messageEl);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // 添加机器人消息
+    function addRobotMessage(content, timestamp) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageEl = document.createElement('div');
+        messageEl.className = 'message robot';
+        
+        const time = formatTime(timestamp);
+        const avatar = '🤖';
+        
+        // 尝试解析JSON格式的内容（图片、文件等）
+        let messageContent = content;
+        let isFile = false;
+        
+        try {
+            const parsedContent = JSON.parse(content);
+            if (parsedContent.type === 'file' && parsedContent.url) {
+                isFile = true;
+                // 判断是图片还是文件
+                if (parsedContent.mime_type && parsedContent.mime_type.startsWith('image/')) {
+                    // 渲染图片
+                    messageContent = `<img src="${parsedContent.url}" alt="图片" style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;" onclick="showImagePreview('${parsedContent.url}')">`;
+                } else {
+                    // 渲染文件链接
+                    const fileSize = parsedContent.size ? formatFileSize(parsedContent.size) : '';
+                    messageContent = `
+                        <a href="${parsedContent.url}" target="_blank" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--primary-color);">
+                            <span style="font-size: 24px;">📎</span>
+                            <div>
+                                <div style="font-weight: 500;">查看文件</div>
+                                ${fileSize ? `<div style="font-size: 12px; color: #9ca3af;">${fileSize}</div>` : ''}
+                            </div>
+                        </a>
+                    `;
+                }
+            }
+        } catch (e) {
+            // 不是JSON格式，尝试解析兼容模式
+            try {
+                const parsedContent = JSON.parse(content);
+                // 🆕 支持 type='file' 和 type='image' 两种格式
+                if ((parsedContent.type === 'file' || parsedContent.type === 'image') && parsedContent.url) {
+                    if (parsedContent.mime_type && parsedContent.mime_type.startsWith('image/')) {
+                        messageContent = `<img src="${parsedContent.url}" alt="图片" style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;" onclick="showImagePreview('${parsedContent.url}')">`;
+                    } else {
+                        const fileSize = parsedContent.size ? formatFileSize(parsedContent.size) : '';
+                        messageContent = `
+                            <a href="${parsedContent.url}" target="_blank" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--primary-color);">
+                                <span style="font-size: 24px;">📎</span>
+                                <div>
+                                    <div style="font-weight: 500;">查看文件</div>
+                                    ${fileSize ? `<div style="font-size: 12px; color: #9ca3af;">${fileSize}</div>` : ''}
+                                </div>
+                            </a>
+                        `;
+                    }
+                } else {
+                    messageContent = content;
+                }
+            } catch (e2) {
+                // 不是JSON格式，保持原内容（HTML会被正确渲染）
+                messageContent = content;
+            }
+        }
+        
+        messageEl.innerHTML = `
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-content">
+                <div class="message-name">智能助手</div>
+                <div class="message-bubble">${messageContent}</div>
+                <div class="message-time">${time}</div>
+            </div>
+        `;
+        
+        messagesContainer.appendChild(messageEl);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    // 添加系统消息
+    function addSystemMessage(content) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageEl = document.createElement('div');
+        messageEl.className = 'system-message';
+        messageEl.textContent = content;
+        messagesContainer.appendChild(messageEl);
+    }
+
+    // 更新访客未读数
+    function updateVisitorUnread(visitorId) {
+        // ⚡ 更新全局未读计数（持久化）
+        unreadCounts[visitorId] = (unreadCounts[visitorId] || 0) + 1;
+        console.log(`📬 访客${visitorId}未读数+1，当前未读: ${unreadCounts[visitorId]}`);
+        
+        // 更新页面上的气泡（如果该访客在当前列表中）
+        const unreadBadge = document.querySelector('#visitor_' + visitorId + ' .unread-badge');
+        if (unreadBadge) {
+            unreadBadge.textContent = unreadCounts[visitorId];
+            unreadBadge.style.display = 'block';
+        }
+    }
+
+    // 移除访客
+    function removeVisitorFromList(visitorId) {
+        const el = document.getElementById('visitor_' + visitorId);
+        if (el) {
+            el.remove();
+        }
+        delete visitors[visitorId];
+
+        if (currentVisitorId == visitorId) {
+            currentVisitorId = null;
+            document.getElementById('chatInterface').style.display = 'none';
+            document.getElementById('chatContainer').style.display = 'flex';
+        }
+
+        if (Object.keys(visitors).length === 0) {
+            document.getElementById('visitorList').innerHTML = `
+                <div class="empty-state">
+                    <div style="font-size: 48px;">👥</div>
+                    <h3>暂无访客</h3>
+                    <p>等待访客接入...</p>
+                </div>
+            `;
+        }
+    }
+
+    // ✅ 更新所有统计信息（从服务器获取准确数据）
+    async function updateStats() {
+        try {
+            const response = await fetch('/api/queue/my-statistics');
+            const result = await response.json();
+            
+            if (result.code === 0) {
+                const stats = result.data;
+                
+                // 更新在线访客数
+                document.getElementById('onlineCount').textContent = stats.online_visitors || 0;
+                
+                // 更新待处理数
+                document.getElementById('pendingCount').textContent = stats.pending_count || 0;
+                
+                // 更新当前会话数标签
+                document.getElementById('currentSessionCount').textContent = stats.active_sessions || 0;
+                
+                // 更新当前接待数
+                document.getElementById('currentWorkload').textContent = stats.active_sessions || 0;
+                
+                console.log(`📊 统计更新: 在线${stats.online_visitors} | 待处理${stats.pending_count} | 活跃${stats.active_sessions}`);
+            } else {
+                console.warn('获取统计失败:', result.msg);
+            }
+        } catch (error) {
+            console.error('获取统计出错:', error);
+        }
+        
+        // 同时更新工作负载显示
+        updateWorkload();
+    }
+    
+    // 更新工作负载显示（提取为独立函数）
+    function updateWorkloadDisplay(currentCount, maxCount) {
+        const utilization = maxCount > 0 ? (currentCount / maxCount * 100) : 0;
+        
+        // 更新数字显示
+        document.getElementById('currentWorkload').textContent = currentCount;
+        
+        // 管理员不显示上限人数
+        const isManager = {{ 'true' if current_user.level in ['super_manager', 'manager'] else 'false' }};
+        const maxWorkloadContainer = document.getElementById('maxWorkloadContainer');
+        if (isManager) {
+            maxWorkloadContainer.style.display = 'none';
+        } else {
+            maxWorkloadContainer.style.display = '';
+            document.getElementById('maxWorkload').textContent = maxCount;
+        }
+        
+        // 更新状态显示
+        const statusEl = document.getElementById('workloadStatus');
+        const currentEl = document.getElementById('currentWorkload');
+        
+        if (utilization === 0) {
+            statusEl.textContent = '空闲';
+            statusEl.style.background = '#d1fae5';
+            statusEl.style.color = '#059669';
+            currentEl.style.color = '#10b981';
+        } else if (utilization < 60) {
+            statusEl.textContent = '正常';
+            statusEl.style.background = '#dbeafe';
+            statusEl.style.color = '#1d4ed8';
+            currentEl.style.color = '#3b82f6';
+        } else if (utilization < 90) {
+            statusEl.textContent = '繁忙';
+            statusEl.style.background = '#fed7aa';
+            statusEl.style.color = '#c2410c';
+            currentEl.style.color = '#f59e0b';
+        } else {
+            statusEl.textContent = '满载';
+            statusEl.style.background = '#fecaca';
+            statusEl.style.color = '#b91c1c';
+            currentEl.style.color = '#ef4444';
+        }
+        
+        console.log(`💼 工作负载更新: ${currentCount}${isManager ? '' : '/' + maxCount} (${utilization.toFixed(0)}%)`);
+    }
+    
+    async function updateWorkload() {
+        try {
+            const response = await fetch(`/api/service/info/${serviceId}`);
+            const data = await response.json();
+            
+            if (data.code === 0) {
+                const service = data.data;
+                const currentCount = service.current_chat_count || 0;
+                const maxCount = service.max_concurrent_chats || 5;
+                updateWorkloadDisplay(currentCount, maxCount);
+            }
+        } catch (error) {
+            console.error('获取工作负载失败:', error);
+        }
+    }
+
+    // 转接会话（调用统一的转接对话框）
+    function transferChat() {
+        // 直接调用现代化的转接对话框
+        showTransferDialog();
+    }
+
+    // 执行转接（已废弃，保留兼容性）
+    function performTransfer(toServiceId, toServiceName) {
+        selectServiceForTransfer(toServiceId, toServiceName);
+    }
+
+    // 结束会话
+    function endChat() {
+        if (!currentVisitorId) {
+            showToast('请先选择一个访客', 'warning');
+            return;
+        }
+        
+        // 使用模态确认弹窗
+        showConfirm('确定要结束此会话吗？', function() {
+            fetch('/api/queue/close', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    visitor_id: currentVisitorId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 0) {
+                    addSystemMessage('会话已结束');
+                    
+                    if (socket && socket.connected) {
+                        socket.emit('session_closed', {
+                            visitor_id: currentVisitorId,
+                            service_id: serviceId
+                        });
+                    }
+                    
+                    removeVisitorFromList(currentVisitorId);
+                    showToast('会话已结束', 'success');
+                } else {
+                    showToast('结束会话失败: ' + data.msg, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('结束会话失败:', error);
+                showToast('结束会话失败，请重试', 'error');
+            });
+        });
+    }
+
+    // 检查访客黑名单状态
+    let currentBlacklistStatus = false;
+    
+    function checkBlacklistStatus(visitorId) {
+        // 通过API查询黑名单状态
+        fetch(`/api/queue/blacklist/check/${visitorId}`, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 0) {
+                currentBlacklistStatus = data.data.is_blacklisted;
+                updateBlacklistButton(currentBlacklistStatus);
+                
+                // 显示黑名单按钮
+                document.getElementById('blacklistBtn').style.display = 'inline-block';
+            } else {
+                console.error('查询黑名单状态失败:', data.msg);
+                // 默认不在黑名单
+                currentBlacklistStatus = false;
+                updateBlacklistButton(false);
+                document.getElementById('blacklistBtn').style.display = 'inline-block';
+            }
+        })
+        .catch(error => {
+            console.error('检查黑名单状态失败:', error);
+            currentBlacklistStatus = false;
+            updateBlacklistButton(false);
+            document.getElementById('blacklistBtn').style.display = 'inline-block';
+        });
+    }
+    
+    function updateBlacklistButton(isBlacklisted) {
+        const icon = document.getElementById('blacklistIcon');
+        const text = document.getElementById('blacklistText');
+        const btn = document.getElementById('blacklistBtn');
+        
+        if (isBlacklisted) {
+            icon.textContent = '✅';
+            text.textContent = '解除';
+            btn.style.backgroundColor = '#10b981';
+        } else {
+            icon.textContent = '🚫';
+            text.textContent = '拉黑';
+            btn.style.backgroundColor = '#ef4444';
+        }
+    }
+    
+    // 切换黑名单状态
+    function toggleBlacklist() {
+        if (!currentVisitorId) {
+            showToast('请先选择一个访客', 'warning');
+            return;
+        }
+        
+        const action = currentBlacklistStatus ? 'remove' : 'add';
+        const actionText = currentBlacklistStatus ? '移出黑名单' : '加入黑名单';
+        
+        showConfirm(`确定要将该访客${actionText}吗？`, () => {
+            fetch(`/api/queue/blacklist/${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    visitor_id: currentVisitorId,
+                    reason: currentBlacklistStatus ? '' : '客服手动拉黑'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 0) {
+                    showToast(data.msg, 'success');
+                    
+                    // 更新状态
+                    currentBlacklistStatus = !currentBlacklistStatus;
+                    updateBlacklistButton(currentBlacklistStatus);
+                    
+                    // 如果是拉黑操作，从访客列表移除
+                    if (currentBlacklistStatus) {
+                        removeVisitorFromList(currentVisitorId);
+                        // 清空聊天界面
+                        document.getElementById('chatInterface').style.display = 'none';
+                        document.getElementById('chatContainer').style.display = 'flex';
+                        currentVisitorId = null;
+                    }
+                } else {
+                    showToast(actionText + '失败: ' + data.msg, 'error');
+                }
+            })
+            .catch(error => {
+                console.error(actionText + '失败:', error);
+                showToast(actionText + '失败，请重试', 'error');
+            });
+        });
+    }
+
+    // ⚡ 更新访客信息面板内容（不影响显示状态）
+    function updateVisitorInfoPanel(visitorId) {
+        const visitor = visitors[visitorId];
+        if (!visitor) return;
+        
+        // 更新面板内容
+        document.getElementById('infoVisitorName').textContent = visitor.visitor_name || '-';
+        document.getElementById('infoVisitorId').textContent = visitorId;
+        document.getElementById('infoIP').textContent = visitor.ip || '-';
+        document.getElementById('infoLocation').textContent = visitor.location || visitor.country || '未知';
+        document.getElementById('infoBrowser').textContent = visitor.browser || 'Unknown';
+        document.getElementById('infoOS').textContent = visitor.os || 'Unknown';
+        document.getElementById('infoDevice').textContent = visitor.device || 'Desktop';
+        document.getElementById('infoResolution').textContent = visitor.screen_resolution || '-';
+        document.getElementById('infoVisitCount').textContent = (visitor.visit_count || 1) + ' 次';
+        
+        // 格式化首次访问时间
+        if (visitor.first_visit) {
+            const firstVisit = new Date(visitor.first_visit);
+            document.getElementById('infoFirstVisit').textContent = 
+                `${firstVisit.getFullYear()}-${String(firstVisit.getMonth() + 1).padStart(2, '0')}-${String(firstVisit.getDate()).padStart(2, '0')} ${String(firstVisit.getHours()).padStart(2, '0')}:${String(firstVisit.getMinutes()).padStart(2, '0')}`;
+        } else {
+            document.getElementById('infoFirstVisit').textContent = '-';
+        }
+    }
+    
+    // 切换访客信息面板
+    function toggleVisitorInfo() {
+        if (!currentVisitorId) {
+            showToast('请先选择一个访客', 'warning');
+            return;
+        }
+        
+        const panel = document.getElementById('visitorInfoPanel');
+        const visitor = visitors[currentVisitorId];
+        
+        if (!visitor) {
+            showToast('访客信息不存在', 'error');
+            return;
+        }
+        
+        // ⚡ 总是先更新内容（确保显示当前访客的信息）
+        updateVisitorInfoPanel(currentVisitorId);
+        
+        // 切换显示
+        if (panel.style.display === 'none' || !panel.style.display) {
+            panel.style.display = 'flex';
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+    
+    // 格式化时间
+    function formatTime(date) {
+        if (!date) return '';
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
+    }
+    
+    // ⚡ 格式化日期（仅日期，不含时间）
+    function formatDateOnly(date) {
+        if (!date) return '';
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
+    // ⚡ 创建日期分隔符元素
+    function createDateSeparator(date) {
+        const separator = document.createElement('div');
+        separator.className = 'date-separator';
+        
+        const dateObj = new Date(date);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        let dateText;
+        if (formatDateOnly(dateObj) === formatDateOnly(today)) {
+            dateText = '今天';
+        } else if (formatDateOnly(dateObj) === formatDateOnly(yesterday)) {
+            dateText = '昨天';
+        } else {
+            dateText = formatDateOnly(date);
+        }
+        
+        // ⚡ 修复：添加.date-separator-text类名，确保CSS样式正确应用
+        separator.innerHTML = `<span class="date-separator-text">${dateText}</span>`;
+        return separator;
+    }
+    
+    // ========== Emoji和文件上传功能 ==========
+    
+    let systemSettings = null; // 系统设置（文件限制等）
+    
+    // 获取系统设置
+    function loadSystemSettings() {
+        // 只有管理员才调用API，普通客服直接使用默认设置
+        if (userLevel !== 'super_manager' && userLevel !== 'manager') {
+            systemSettings = {
+                upload_max_size: 10485760,  // 10MB
+                upload_image_max_size: 5242880,  // 5MB
+                upload_allowed_types: 'image,document,archive'
+            };
+            console.log('✅ 客服账号使用默认系统设置');
+            return;
+        }
+        
+        // 管理员才获取系统设置
+        fetch('/api/admin/system-settings')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('获取系统设置失败');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.code === 0) {
+                    systemSettings = data.data;
+                    console.log('✅ 系统设置已加载:', systemSettings);
+                } else {
+                    // 使用默认设置
+                    systemSettings = {
+                        upload_max_size: 10485760,
+                        upload_image_max_size: 5242880,
+                        upload_allowed_types: 'image,document,archive'
+                    };
+                    console.log('⚠️ 获取系统设置失败，使用默认设置');
+                }
+            })
+            .catch(error => {
+                // 静默处理错误，使用默认设置
+                systemSettings = {
+                    upload_max_size: 10485760,
+                    upload_image_max_size: 5242880,
+                    upload_allowed_types: 'image,document,archive'
+                };
+                console.log('⚠️ 系统设置加载异常，使用默认设置');
+            });
+    }
+    
+    // 初始化Emoji选择器
+    function initEmojiPicker() {
+        const emojiBtn = document.getElementById('emojiBtn');
+        const messageInput = document.getElementById('messageInput');
+        
+        if (!emojiBtn || !messageInput) return;
+        
+        // 给emoji按钮添加触发类
+        emojiBtn.classList.add('emoji-trigger');
+        
+        // 点击emoji按钮显示选择器
+        emojiBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.emojiPicker) {
+                window.emojiPicker.show(emojiBtn, messageInput, (emoji) => {
+                    console.log('选择了emoji:', emoji);
+                });
+            } else {
+                console.error('EmojiPicker未加载');
+            }
+        });
+    }
+    
+    // 初始化文件上传
+    function initFileUpload() {
+        const imageBtn = document.getElementById('imageBtn');
+        const fileBtn = document.getElementById('fileBtn');
+        const imageInput = document.getElementById('imageInput');
+        const fileInput = document.getElementById('fileInputElem');
+        const messageInput = document.getElementById('messageInput');
+        
+        // 图片按钮
+        if (imageBtn && imageInput) {
+            imageBtn.addEventListener('click', () => {
+                imageInput.click();
+            });
+            
+            imageInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    uploadFile(file, 'image');
+                }
+                imageInput.value = ''; // 重置
+            });
+        }
+        
+        // 文件按钮
+        if (fileBtn && fileInput) {
+            fileBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    uploadFile(file, 'file');
+                }
+                fileInput.value = ''; // 重置
+            });
+        }
+        
+        // 粘贴上传功能
+        if (messageInput) {
+            messageInput.addEventListener('paste', (e) => {
+                const items = e.clipboardData.items;
+                
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    
+                    // 处理图片粘贴
+                    if (item.type.indexOf('image') !== -1) {
+                        e.preventDefault();
+                        const file = item.getAsFile();
+                        if (file) {
+                            uploadFile(file, 'image');
+                        }
+                        break;
+                    }
+                }
+            });
+            
+            // 拖拽上传功能
+            messageInput.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                messageInput.style.background = '#f0f9ff';
+            });
+            
+            messageInput.addEventListener('dragleave', (e) => {
+                messageInput.style.background = '';
+            });
+            
+            messageInput.addEventListener('drop', (e) => {
+                e.preventDefault();
+                messageInput.style.background = '';
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const file = files[0];
+                    const fileType = file.type.startsWith('image/') ? 'image' : 'file';
+                    uploadFile(file, fileType);
+                }
+            });
+        }
+    }
+    
+    // 文件上传函数
+    function uploadFile(file, type) {
+        if (!currentVisitorId) {
+            showToast('请先选择一个访客', 'warning');
+            return;
+        }
+        
+        if (!systemSettings) {
+            showToast('系统设置未加载，请稍候...', 'warning');
+            return;
+        }
+        
+        // 验证文件大小
+        const maxSize = type === 'image' ? systemSettings.upload_image_max_size : systemSettings.upload_max_size;
+        if (file.size > maxSize) {
+            showToast(`文件大小超过限制（最大${formatFileSize(maxSize)})`, 'error');
+            return;
+        }
+        
+        // 验证文件类型
+        const allowedTypes = systemSettings.upload_allowed_types.split(',');
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        const fileCategory = getFileCategory(file.type, fileExt);
+        
+        if (!allowedTypes.includes(fileCategory)) {
+            showToast(`不支持的文件类型：${fileCategory}`, 'error');
+            return;
+        }
+        
+        // 显示上传进度
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        
+        uploadProgress.style.display = 'block';
+        progressFill.style.width = '0%';
+        progressText.textContent = '上传中... 0%';
+        
+        // 创建FormData
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('business_id', 1);
+        
+        // 选择上传接口
+        const uploadUrl = type === 'image' ? '/api/upload/image' : '/api/upload/file';
+        
+        // 使用XMLHttpRequest以支持进度
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressFill.style.width = percent + '%';
+                progressText.textContent = `上传中... ${percent}%`;
+            }
+        });
+        
+        xhr.addEventListener('load', () => {
+            uploadProgress.style.display = 'none';
+            
+            if (xhr.status === 200) {
+                const response = JSON.parse(xhr.responseText);
+                if (response.code === 0) {
+                    console.log('文件上传成功:', response.data);
+                    sendFileMessage(response.data);
+                } else {
+                    showToast('上传失败: ' + response.msg, 'error');
+                }
+            } else {
+                showToast('上传失败，请重试', 'error');
+            }
+        });
+        
+        xhr.addEventListener('error', () => {
+            uploadProgress.style.display = 'none';
+            showToast('上传出错，请检查网络', 'error');
+        });
+        
+        xhr.open('POST', uploadUrl);
+        
+        // ✅ 添加 CSRF Token 到请求头
+        if (window.CSRF && window.CSRF.getToken) {
+            window.CSRF.getToken().then(token => {
+                if (token) {
+                    xhr.setRequestHeader('X-CSRFToken', token);
+                }
+                xhr.send(formData);
+            }).catch(() => {
+                // 如果获取 token 失败，仍然尝试发送
+                xhr.send(formData);
+            });
+        } else {
+            xhr.send(formData);
+        }
+    }
+    
+    // 发送文件消息
+    function sendFileMessage(fileData) {
+        if (!socket || !socket.connected) {
+            showToast('未连接到服务器', 'warning');
+            return;
+        }
+        
+        const fileMessage = {
+            type: 'file',
+            url: fileData.url,
+            name: fileData.filename,
+            size: fileData.size,
+            mime_type: fileData.mime_type
+        };
+        
+        // 在界面显示
+        addFileMessage(JSON.stringify(fileMessage), fileData.mime_type.startsWith('image/') ? 'image' : 'file', new Date());
+        
+        // 发送到服务器
+        socket.emit('send_message', {
+            from_id: serviceId,
+            from_type: 'service',
+            from_name: serviceName,
+            to_id: currentVisitorId,
+            to_type: 'visitor',
+            content: JSON.stringify(fileMessage),
+            msg_type: 'file',
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    // 显示文件消息
+    function addFileMessage(content, msgType, timestamp) {
+        const chatMessages = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message service';
+        
+        let fileData;
+        try {
+            fileData = JSON.parse(content);
+        } catch (e) {
+            console.error('解析文件数据失败:', e);
+            return;
+        }
+        
+        let fileContent = '';
+        const isImage = msgType === 'image' || fileData.mime_type.startsWith('image/');
+        
+        if (isImage) {
+            fileContent = `
+                <div class="file-message image">
+                    <img src="${fileData.url}" alt="${fileData.name}" style="max-width: 300px; max-height: 300px; border-radius: 8px; cursor: pointer;" onclick="window.open('${fileData.url}', '_blank')">
+                    <div class="file-info">
+                        <span class="file-name">${fileData.name}</span>
+                        <span class="file-size">${formatFileSize(fileData.size)}</span>
+                    </div>
+                </div>
+            `;
+        } else {
+            const icon = getFileIcon(fileData.mime_type);
+            fileContent = `
+                <div class="file-message">
+                    <div class="file-icon">${icon}</div>
+                    <div class="file-details">
+                        <div class="file-name">${fileData.name}</div>
+                        <div class="file-size">${formatFileSize(fileData.size)}</div>
+                    </div>
+                    <a href="${fileData.url}" download="${fileData.name}" class="file-download">📥</a>
+                </div>
+            `;
+        }
+        
+        messageDiv.innerHTML = `
+            <div class="message-avatar">客</div>
+            <div class="message-content">
+                ${fileContent}
+                <div class="message-time">${formatTime(timestamp)}</div>
+            </div>
+        `;
+        
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // 获取文件类别
+    function getFileCategory(mimeType, ext) {
+        if (mimeType.startsWith('image/')) return 'image';
+        if (mimeType.startsWith('video/')) return 'video';
+        if (mimeType.startsWith('audio/')) return 'audio';
+        
+        const docExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'];
+        if (docExts.includes(ext)) return 'document';
+        
+        const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz'];
+        if (archiveExts.includes(ext)) return 'archive';
+        
+        return 'other';
+    }
+    
+    // 获取文件图标
+    function getFileIcon(mimeType) {
+        if (mimeType.startsWith('image/')) return '🖼️';
+        if (mimeType.startsWith('video/')) return '🎥';
+        if (mimeType.startsWith('audio/')) return '🎵';
+        if (mimeType.includes('pdf')) return '📄';
+        if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
+        if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return '📊';
+        if (mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('archive')) return '📦';
+        return '📎';
+    }
+    
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+    
+    // ========== 消息提示功能 ==========
+    
+    let originalTitle = document.title;
+    let titleFlashInterval = null;
+    let isPageVisible = true;
+    let unreadCount = 0;
+    let audioContext = null; // 全局AudioContext，避免重复创建
+    let audioContextInitialized = false;
+    
+    // 监听页面可见性
+    document.addEventListener('visibilitychange', async () => {
+        isPageVisible = !document.hidden;
+        if (isPageVisible) {
+            // 页面变为可见时，停止闪烁并恢复标题
+            stopTitleFlash();
+            unreadCount = 0;
+            
+            // ✅ 恢复AudioContext（确保提示音可以播放）
+            if (audioContext && audioContext.state === 'suspended') {
+                try {
+                    console.log('🔄 页面可见，恢复AudioContext...');
+                    await audioContext.resume();
+                    console.log('✅ AudioContext已恢复:', audioContext.state);
+                } catch (error) {
+                    console.error('❌ AudioContext恢复失败:', error);
+                }
+            }
+        }
+    });
+    
+    // 开始标题闪烁
+    function startTitleFlash(message) {
+        unreadCount++;
+        
+        // 如果页面可见，不需要闪烁
+        if (isPageVisible) return;
+        
+        // 如果已经在闪烁，只更新未读数
+        if (titleFlashInterval) {
+            return;
+        }
+        
+        let showNew = true;
+        titleFlashInterval = setInterval(() => {
+            if (showNew) {
+                document.title = `(${unreadCount}条新消息) ${originalTitle}`;
+            } else {
+                document.title = originalTitle;
+            }
+            showNew = !showNew;
+        }, 1000);
+    }
+    
+    // 停止标题闪烁
+    function stopTitleFlash() {
+        if (titleFlashInterval) {
+            clearInterval(titleFlashInterval);
+            titleFlashInterval = null;
+        }
+        document.title = originalTitle;
+    }
+    
+    // 初始化AudioContext（在用户首次交互时调用）
+    async function initAudioContext() {
+        if (!audioContextInitialized) {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioContextInitialized = true;
+                console.log('✅ AudioContext已初始化，状态:', audioContext.state);
+                
+                // ✅ 立即恢复AudioContext（确保状态为running）
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                    console.log('✅ AudioContext已恢复到running状态:', audioContext.state);
+                }
+            } catch (error) {
+                console.error('❌ AudioContext初始化失败:', error);
+            }
+        }
+    }
+    
+    // ✅ 添加全局交互监听，确保AudioContext能被初始化
+    document.addEventListener('click', function initAudioOnClick() {
+        initAudioContext();
+    }, { once: true });
+    
+    document.addEventListener('keydown', function initAudioOnKeydown() {
+        initAudioContext();
+    }, { once: true });
+    
+    // 播放提示音（使用预创建的AudioContext）
+    async function playNotificationSound() {
+        // ⚠️ 不要在WebSocket回调中尝试初始化，必须在真实用户交互中初始化
+        if (!audioContext || !audioContextInitialized) {
+            // 只在第一次时显示提示（避免刷屏）
+            if (!window.audioInitHintShown) {
+                console.log('💡 提示音需要用户交互后才能播放，请点击页面任意位置');
+                window.audioInitHintShown = true;
+            }
+            return;
+        }
+        
+        try {
+            // ✅ 确保AudioContext处于运行状态（异步等待恢复完成）
+            if (audioContext.state === 'suspended') {
+                console.log('🔄 AudioContext已暂停，正在恢复...');
+                await audioContext.resume();
+                console.log('✅ AudioContext已恢复:', audioContext.state);
+            }
+            
+            // 再次检查状态，确保已恢复
+            if (audioContext.state !== 'running') {
+                console.warn('⚠️ AudioContext状态异常:', audioContext.state);
+                return;
+            }
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // 设置音调
+            oscillator.frequency.value = 800; // 800Hz
+            oscillator.type = 'sine';
+            
+            // 设置音量（淡入淡出效果）- 增强音量和时长
+            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.6, audioContext.currentTime + 0.01);
+            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+            
+            // 播放
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+            
+            console.log('🔔 提示音播放成功');
+            
+            // 第二个音（稍高音调）
+            setTimeout(() => {
+                const oscillator2 = audioContext.createOscillator();
+                const gainNode2 = audioContext.createGain();
+                
+                oscillator2.connect(gainNode2);
+                gainNode2.connect(audioContext.destination);
+                
+                oscillator2.frequency.value = 1000; // 1000Hz
+                oscillator2.type = 'sine';
+                
+                gainNode2.gain.setValueAtTime(0, audioContext.currentTime);
+                gainNode2.gain.linearRampToValueAtTime(0.6, audioContext.currentTime + 0.01);
+                gainNode2.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+                
+                oscillator2.start(audioContext.currentTime);
+                oscillator2.stop(audioContext.currentTime + 0.5);
+            }, 150);
+        } catch (error) {
+            console.error('❌ 播放提示音失败:', error);
+        }
+    }
+    
+    // 显示桌面通知（需要用户授权）
+    function showDesktopNotification(title, body) {
+        if (!("Notification" in window)) {
+            console.log('浏览器不支持桌面通知');
+            return;
+        }
+        
+        if (Notification.permission === "granted") {
+            new Notification(title, {
+                body: body,
+                icon: '/static/favicon.svg',
+                badge: '/static/favicon.svg',
+                tag: 'new-message',
+                requireInteraction: false
+            });
+        } else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    new Notification(title, {
+                        body: body,
+                        icon: '/static/favicon.svg'
+                    });
+                }
+            });
+        }
+    }
+    
+    // 页面加载完成后初始化
+    window.addEventListener('DOMContentLoaded', () => {
+        loadSystemSettings();
+        initEmojiPicker();
+        initFileUpload();
+        
+        // ✅ 初始化统计显示（包含工作负载）
+        updateStats();
+        
+        // ✅ 定时更新统计（每30秒）
+        setInterval(() => {
+            updateStats();
+        }, 30000);
+        
+        // 请求桌面通知权限
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+    });
+    
+    // 智能轮询队列状态
+    let queueCheckInterval = null;
+    let currentQueueSize = 0;
+    
+    function startQueueStatusCheck() {
+        if (!socket) return; // ✅ 确保socket已初始化
+        
+        if (queueCheckInterval) {
+            clearInterval(queueCheckInterval);
+        }
+        
+        // 智能间隔：队列有人时5秒，无人时30秒
+        const interval = currentQueueSize > 0 ? 5000 : 30000;
+        
+        console.log(`🔄 队列状态检测（${interval/1000}秒轮询）`);
+        queueCheckInterval = setInterval(function() {
+            socket.emit('get_queue_status', { business_id: 1 });
+        }, interval);
+    }
+    
+    // 启动智能轮询
+    startQueueStatusCheck();
+    
+    // ========== 知识库功能 ==========
+    let knowledgeCache = [];
+    let allKnowledge = [];
+    
+    // 知识库按钮点击
+    document.getElementById('knowledgeBtn').addEventListener('click', function() {
+        openKnowledgeModal();
+    });
+    
+    // 打开知识库弹窗
+    async function openKnowledgeModal() {
+        document.getElementById('knowledgeModal').style.display = 'flex';
+        if (knowledgeCache.length === 0) {
+            await loadKnowledgeBase();
+        }
+    }
+    
+    // 关闭知识库弹窗
+    function closeKnowledgeModal() {
+        document.getElementById('knowledgeModal').style.display = 'none';
+        document.getElementById('knowledgeSearch').value = '';
+    }
+    
+    // 点击模态框外部关闭
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('knowledgeModal');
+        if (event.target === modal) {
+            closeKnowledgeModal();
+        }
+    });
+    
+    // 加载知识库
+    async function loadKnowledgeBase() {
+        try {
+            const response = await fetch('/api/question/list?page=1&per_page=100');
+            const result = await response.json();
+            
+            console.log('知识库API响应:', result);
+            
+            // 接口返回 data 直接是数组
+            if (result.code === 0 && result.data && Array.isArray(result.data) && result.data.length > 0) {
+                knowledgeCache = result.data;
+                allKnowledge = result.data;
+                renderKnowledgeList(knowledgeCache);
+                console.log('✅ 知识库加载成功，共', result.data.length, '条');
+            } else {
+                console.log('❌ 知识库数据为空');
+                document.getElementById('knowledgeList').innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: #9ca3af;">
+                        暂无知识库数据
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('加载知识库失败:', error);
+            document.getElementById('knowledgeList').innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #ef4444;">
+                    加载失败，请稍后重试
+                </div>
+            `;
+        }
+    }
+    
+    // 渲染知识库列表
+    function renderKnowledgeList(list) {
+        const container = document.getElementById('knowledgeList');
+        
+        if (!list || list.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #9ca3af;">
+                    没有找到相关知识
+                </div>
+            `;
+            return;
+        }
+        
+        console.log('渲染知识库列表，共', list.length, '条');
+        
+        // 使用 qid 而不是 id，使用 answer_text 而不是 answer
+        container.innerHTML = list.map(item => `
+            <div class="knowledge-item" onclick="useKnowledge(${item.qid})">
+                <div class="knowledge-item-title">Q: ${item.question}</div>
+                <div class="knowledge-item-answer">A: ${item.answer_text || item.answer}</div>
+            </div>
+        `).join('');
+    }
+    
+    // 搜索知识库
+    function searchKnowledge() {
+        const keyword = document.getElementById('knowledgeSearch').value.trim().toLowerCase();
+        
+        if (!keyword) {
+            renderKnowledgeList(allKnowledge);
+            return;
+        }
+        
+        const filtered = allKnowledge.filter(item => {
+            const answerText = item.answer_text || item.answer || '';
+            return item.question.toLowerCase().includes(keyword) || 
+                   answerText.toLowerCase().includes(keyword);
+        });
+        
+        console.log('搜索结果:', filtered.length, '条');
+        renderKnowledgeList(filtered);
+    }
+    
+    // 使用知识库答案
+    function useKnowledge(qid) {
+        console.log('选择知识库项，qid:', qid);
+        const knowledge = allKnowledge.find(item => item.qid === qid);
+        if (knowledge) {
+            // 使用 answer_text（纯文本）而不是 answer（HTML格式）
+            const answerText = knowledge.answer_text || knowledge.answer;
+            document.getElementById('messageInput').value = answerText;
+            closeKnowledgeModal();
+            document.getElementById('messageInput').focus();
+            console.log('✅ 已填充答案');
+        } else {
+            console.error('未找到知识库项，qid:', qid);
+        }
+    }
+    
+    // ==================== 移动端响应式控制 ====================
+    
+    // 检测屏幕宽度并显示/隐藏切换按钮
+    function checkMobileView() {
+        const mobileToggle = document.getElementById('mobileToggle');
+        const isMobile = window.innerWidth <= 768;
+        
+        console.log('🔍 检测移动端视图:', isMobile, 'window.innerWidth:', window.innerWidth);
+        
+        if (mobileToggle) {
+            mobileToggle.style.display = isMobile ? 'flex' : 'none';
+            console.log('✅ 切换按钮显示状态:', mobileToggle.style.display);
+        } else {
+            console.error('❌ 未找到切换按钮元素 #mobileToggle');
+        }
+        
+        // 如果从移动端切换到桌面端，确保会话列表显示
+        if (!isMobile) {
+            const sidebar = document.getElementById('chatSidebar');
+            const overlay = document.getElementById('chatSidebarOverlay');
+            if (sidebar) sidebar.classList.remove('show');
+            if (overlay) overlay.classList.remove('show');
+        }
+    }
+    
+    // 切换会话列表侧边栏显示/隐藏（重命名避免与全局功能菜单冲突）
+    function toggleChatSidebar(event) {
+        console.log('🔘 toggleChatSidebar 被调用');
+        
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        const sidebar = document.getElementById('chatSidebar');
+        const overlay = document.getElementById('chatSidebarOverlay');
+        const toggle = document.getElementById('mobileToggle');
+        const icon = document.getElementById('toggleIcon');
+        
+        if (!sidebar || !overlay) {
+            console.error('❌ 未找到会话列表或遮罩层元素');
+            return;
+        }
+        
+        const isShowing = sidebar.classList.contains('show');
+        console.log('当前会话列表状态:', isShowing ? '显示' : '隐藏');
+        
+        if (isShowing) {
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+            if (toggle) toggle.classList.remove('active');
+            // 切换图标：从×改回≡
+            if (icon) {
+                icon.classList.remove('fa-times');
+                icon.classList.add('fa-bars');
+            }
+            console.log('✅ 关闭侧边栏');
+        } else {
+            sidebar.classList.add('show');
+            overlay.classList.add('show');
+            if (toggle) toggle.classList.add('active');
+            // 切换图标：从≡改为×
+            if (icon) {
+                icon.classList.remove('fa-bars');
+                icon.classList.add('fa-times');
+            }
+            console.log('✅ 打开侧边栏');
+        }
+    }
+    
+    // 初始化移动端响应式功能
+    function initMobileResponsive() {
+        console.log('🚀 初始化移动端响应式功能');
+        
+        // 初始检查
+        checkMobileView();
+        
+        // 切换按钮事件和拖拽功能
+        const mobileToggle = document.getElementById('mobileToggle');
+        if (mobileToggle) {
+            console.log('✅ 绑定切换按钮点击事件');
+            
+            // 拖拽相关变量
+            let isDragging = false;
+            let hasMoved = false;
+            let startX, startY, startLeft, startTop;
+            
+            // 鼠标/触摸开始
+            function handleDragStart(e) {
+                const touch = e.type === 'touchstart' ? e.touches[0] : e;
+                isDragging = true;
+                hasMoved = false;
+                startX = touch.clientX;
+                startY = touch.clientY;
+                
+                const rect = mobileToggle.getBoundingClientRect();
+                startLeft = rect.left;
+                startTop = rect.top;
+                
+                mobileToggle.style.transition = 'none';
+                e.preventDefault();
+            }
+            
+            // 鼠标/触摸移动
+            function handleDragMove(e) {
+                if (!isDragging) return;
+                
+                const touch = e.type === 'touchmove' ? e.touches[0] : e;
+                const deltaX = touch.clientX - startX;
+                const deltaY = touch.clientY - startY;
+                
+                // 如果移动距离超过5px，认为是拖拽
+                if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+                    hasMoved = true;
+                }
+                
+                if (hasMoved) {
+                    const newLeft = startLeft + deltaX;
+                    const newTop = startTop + deltaY;
+                    
+                    // 限制在视口范围内
+                    const maxX = window.innerWidth - mobileToggle.offsetWidth;
+                    const maxY = window.innerHeight - mobileToggle.offsetHeight;
+                    
+                    mobileToggle.style.left = Math.max(0, Math.min(newLeft, maxX)) + 'px';
+                    mobileToggle.style.top = Math.max(0, Math.min(newTop, maxY)) + 'px';
+                }
+                
+                e.preventDefault();
+            }
+            
+            // 鼠标/触摸结束
+            function handleDragEnd(e) {
+                if (!isDragging) return;
+                
+                isDragging = false;
+                mobileToggle.style.transition = '';
+                
+                // 如果没有移动，触发点击事件
+                if (!hasMoved) {
+                    console.log('🖱️ 切换按钮被点击（未拖动）');
+                    toggleChatSidebar(e);
+                } else {
+                    console.log('✋ 按钮被拖动到新位置');
+                }
+                
+                e.preventDefault();
+            }
+            
+            // 绑定鼠标事件
+            mobileToggle.addEventListener('mousedown', handleDragStart);
+            document.addEventListener('mousemove', handleDragMove);
+            document.addEventListener('mouseup', handleDragEnd);
+            
+            // 绑定触摸事件
+            mobileToggle.addEventListener('touchstart', handleDragStart, { passive: false });
+            document.addEventListener('touchmove', handleDragMove, { passive: false });
+            document.addEventListener('touchend', handleDragEnd, { passive: false });
+        } else {
+            console.error('❌ 未找到切换按钮元素 #mobileToggle');
+        }
+        
+        // 点击遮罩层关闭会话列表
+        const overlay = document.getElementById('chatSidebarOverlay');
+        if (overlay) {
+            console.log('✅ 绑定遮罩层点击事件');
+            overlay.addEventListener('click', toggleChatSidebar);
+        } else {
+            console.error('❌ 未找到遮罩层元素 #chatSidebarOverlay');
+        }
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', checkMobileView);
+        
+        // 移动端点击访客后自动关闭侧边栏
+        document.addEventListener('click', function(e) {
+            if (window.innerWidth <= 768) {
+                if (e.target.closest('.queue-item') || e.target.closest('.visitor-item')) {
+                    setTimeout(() => {
+                        const sidebar = document.getElementById('chatSidebar');
+                        const overlay = document.getElementById('chatSidebarOverlay');
+                        const toggle = document.getElementById('mobileToggle');
+                        const icon = document.getElementById('toggleIcon');
+                        
+                        if (sidebar && sidebar.classList.contains('show')) {
+                            sidebar.classList.remove('show');
+                            overlay.classList.remove('show');
+                            if (toggle) toggle.classList.remove('active');
+                            // 恢复菜单图标
+                            if (icon) {
+                                icon.classList.remove('fa-times');
+                                icon.classList.add('fa-bars');
+                            }
+                        }
+                    }, 300);
+                }
+            }
+        });
+        
+        console.log('✅ 移动端响应式功能初始化完成');
+    }
+    
+    // 确保在页面完全加载后初始化
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMobileResponsive);
+    } else {
+        // 如果DOM已经加载完成，立即初始化
+        initMobileResponsive();
+    }
+    
+    // ========== 通用工具函数 ==========
+    
+    // Toast提示
+    function showToast(message, type = 'info') {
+        // 移除已存在的toast
+        const existingToast = document.querySelector('.custom-toast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+        
+        const toast = document.createElement('div');
+        toast.className = `custom-toast custom-toast-${type}`;
+        
+        const iconMap = {
+            'success': '✓',
+            'error': '✕',
+            'warning': '⚠',
+            'info': 'ℹ'
+        };
+        
+        toast.innerHTML = `
+            <span class="toast-icon">${iconMap[type] || 'ℹ'}</span>
+            <span class="toast-message">${message}</span>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 添加样式
+        if (!document.getElementById('toastStyles')) {
+            const style = document.createElement('style');
+            style.id = 'toastStyles';
+            style.textContent = `
+                .custom-toast {
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 12px 20px;
+                    border-radius: 8px;
+                    color: white;
+                    font-size: 14px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    z-index: 10000;
+                    animation: slideIn 0.3s ease;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                }
+                
+                .custom-toast-success {
+                    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+                }
+                
+                .custom-toast-error {
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                }
+                
+                .custom-toast-warning {
+                    background: linear-gradient(135deg, #fccb90 0%, #d57eeb 100%);
+                }
+                
+                .custom-toast-info {
+                    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                }
+                
+                .toast-icon {
+                    font-size: 18px;
+                    font-weight: bold;
+                }
+                
+                @keyframes slideIn {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                
+                @keyframes slideOut {
+                    from {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                    to {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // 3秒后自动消失
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+    
+    // 确认对话框
+    function showConfirm(message, onConfirm, onCancel) {
+        // 移除已存在的确认框
+        const existingConfirm = document.querySelector('.custom-confirm-overlay');
+        if (existingConfirm) {
+            existingConfirm.remove();
+        }
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-confirm-overlay';
+        
+        overlay.innerHTML = `
+            <div class="custom-confirm-dialog">
+                <div class="confirm-header">
+                    <h3>确认操作</h3>
+                </div>
+                <div class="confirm-body">
+                    <p>${message}</p>
+                </div>
+                <div class="confirm-footer">
+                    <button class="confirm-btn confirm-btn-cancel">取消</button>
+                    <button class="confirm-btn confirm-btn-ok">确定</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        // 添加样式
+        if (!document.getElementById('confirmStyles')) {
+            const style = document.createElement('style');
+            style.id = 'confirmStyles';
+            style.textContent = `
+                .custom-confirm-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 10001;
+                    animation: fadeIn 0.2s ease;
+                }
+                
+                .custom-confirm-dialog {
+                    background: white;
+                    border-radius: 12px;
+                    width: 90%;
+                    max-width: 400px;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                    animation: scaleIn 0.3s ease;
+                }
+                
+                .confirm-header {
+                    padding: 20px;
+                    border-bottom: 1px solid #eee;
+                }
+                
+                .confirm-header h3 {
+                    margin: 0;
+                    font-size: 18px;
+                    color: #333;
+                }
+                
+                .confirm-body {
+                    padding: 20px;
+                }
+                
+                .confirm-body p {
+                    margin: 0;
+                    color: #666;
+                    line-height: 1.5;
+                }
+                
+                .confirm-footer {
+                    padding: 15px 20px;
+                    border-top: 1px solid #eee;
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 10px;
+                }
+                
+                .confirm-btn {
+                    padding: 8px 20px;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: all 0.3s;
+                }
+                
+                .confirm-btn-cancel {
+                    background: #f0f0f0;
+                    color: #666;
+                }
+                
+                .confirm-btn-cancel:hover {
+                    background: #e0e0e0;
+                }
+                
+                .confirm-btn-ok {
+                    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+                    color: white;
+                }
+                
+                .confirm-btn-ok:hover {
+                    opacity: 0.9;
+                    transform: translateY(-1px);
+                }
+                
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                
+                @keyframes scaleIn {
+                    from {
+                        transform: scale(0.9);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: scale(1);
+                        opacity: 1;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // 事件处理
+        const cancelBtn = overlay.querySelector('.confirm-btn-cancel');
+        const okBtn = overlay.querySelector('.confirm-btn-ok');
+        
+        function closeDialog() {
+            overlay.style.animation = 'fadeOut 0.2s ease';
+            setTimeout(() => overlay.remove(), 200);
+        }
+        
+        cancelBtn.addEventListener('click', () => {
+            if (onCancel) onCancel();
+            closeDialog();
+        });
+        
+        okBtn.addEventListener('click', () => {
+            if (onConfirm) onConfirm();
+            closeDialog();
+        });
+        
+        // 点击遮罩层关闭
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                if (onCancel) onCancel();
+                closeDialog();
+            }
+        });
+    }
+    
+    // ========== 图片预览功能 (Image Preview Lightbox) ==========
+    
+    /**
+     * 显示图片预览弹窗
+     * @param {string} imageUrl - 图片URL
+     */
+    function showImagePreview(imageUrl) {
+        // 创建预览容器
+        const previewContainer = document.createElement('div');
+        previewContainer.id = 'imagePreviewModal';
+        previewContainer.className = 'image-preview-modal';
+        
+        previewContainer.innerHTML = `
+            <div class="image-preview-backdrop" onclick="closeImagePreview()"></div>
+            <div class="image-preview-content">
+                <button class="image-preview-close" onclick="closeImagePreview()" title="关闭 (ESC)">
+                    ✕
+                </button>
+                <img src="${imageUrl}" alt="图片预览" class="image-preview-img">
+            </div>
+        `;
+        
+        document.body.appendChild(previewContainer);
+        
+        // 添加动画效果
+        setTimeout(() => {
+            previewContainer.classList.add('show');
+        }, 10);
+        
+        // 监听ESC键关闭
+        document.addEventListener('keydown', handleImagePreviewEscape);
+    }
+    
+    /**
+     * 关闭图片预览弹窗
+     */
+    function closeImagePreview() {
+        const modal = document.getElementById('imagePreviewModal');
+        if (modal) {
+            modal.classList.remove('show');
+            
+            // 等待动画结束后移除元素
+            setTimeout(() => {
+                modal.remove();
+            }, 300);
+        }
+        
+        // 移除ESC监听
+        document.removeEventListener('keydown', handleImagePreviewEscape);
+    }
+    
+    /**
+     * 处理ESC键按下事件
+     */
+    function handleImagePreviewEscape(e) {
+        if (e.key === 'Escape') {
+            closeImagePreview();
+        }
+    }
+    
+</script>
+{% endblock %}
+

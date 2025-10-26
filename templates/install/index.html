@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统安装向导</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/font-awesome/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/install/index.css') }}">
+</head>
+<body>
+    <div class="install-container">
+        <div class="install-header">
+            <h1><i class="fas fa-rocket"></i> 客服系统安装向导</h1>
+            <p>欢迎使用客服系统，请按照步骤完成安装</p>
+        </div>
+
+        <!-- 步骤指示器 -->
+        <div class="steps-indicator">
+            <div class="step active" data-step="1">
+                <div class="step-number">1</div>
+                <div class="step-label">环境检测</div>
+            </div>
+            <div class="step" data-step="2">
+                <div class="step-number">2</div>
+                <div class="step-label">数据库配置</div>
+            </div>
+            <div class="step" data-step="3">
+                <div class="step-number">3</div>
+                <div class="step-label">管理员设置</div>
+            </div>
+            <div class="step" data-step="4">
+                <div class="step-number">4</div>
+                <div class="step-label">完成安装</div>
+            </div>
+        </div>
+
+        <!-- 步骤1: 环境检测 -->
+        <div class="install-step" id="step1" style="display: block;">
+            <h2><i class="fas fa-check-circle"></i> 环境检测</h2>
+            <p class="step-desc">正在检测系统环境...</p>
+            
+            <div id="envCheckResults" class="check-results">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i> 正在检测...
+                </div>
+            </div>
+
+            <div id="missingPackages" style="display: none;" class="warning-box">
+                <h3><i class="fas fa-exclamation-triangle"></i> 检测到缺失的包</h3>
+                <ul id="missingPackageList"></ul>
+                <button class="btn btn-warning" onclick="installMissingPackages()">
+                    <i class="fas fa-download"></i> 一键安装缺失的包
+                </button>
+                <div id="installProgress" style="display: none; margin-top: 15px;">
+                    <div class="progress-text">正在安装...</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="checkEnvironment()">
+                    <i class="fas fa-redo"></i> 重新检测
+                </button>
+                <button class="btn btn-success" id="nextStep1" onclick="nextStep(2)" disabled>
+                    下一步 <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 步骤2: 数据库配置 -->
+        <div class="install-step" id="step2" style="display: none;">
+            <h2><i class="fas fa-database"></i> 数据库配置</h2>
+            <p class="step-desc">请输入MySQL数据库连接信息</p>
+            
+            {% if db_config.db_user != 'root' or db_config.db_host != 'localhost' %}
+            <div style="padding: 12px; background: #e0f2fe; border-left: 4px solid #0ea5e9; border-radius: 8px; margin-bottom: 20px;">
+                <i class="fas fa-info-circle" style="color: #0ea5e9;"></i>
+                <span style="color: #075985; margin-left: 8px;">已从现有配置中读取数据库信息，可直接使用或修改</span>
+            </div>
+            {% endif %}
+
+            <form id="dbForm" class="config-form">
+                <div class="form-group">
+                    <label for="db_host"><i class="fas fa-server"></i> 数据库地址</label>
+                    <input type="text" id="db_host" value="{{ db_config.db_host }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="db_port"><i class="fas fa-plug"></i> 端口</label>
+                    <input type="number" id="db_port" value="{{ db_config.db_port }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="db_user"><i class="fas fa-user"></i> 用户名</label>
+                    <input type="text" id="db_user" value="{{ db_config.db_user }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="db_password"><i class="fas fa-key"></i> 密码</label>
+                    <input type="password" id="db_password" value="{{ db_config.db_password }}" placeholder="数据库密码">
+                </div>
+
+                <div class="form-group">
+                    <label for="db_name"><i class="fas fa-database"></i> 数据库名</label>
+                    <input type="text" id="db_name" value="{{ db_config.db_name }}" required>
+                </div>
+
+                <button type="button" class="btn btn-secondary" onclick="testDatabase()">
+                    <i class="fas fa-vial"></i> 测试连接
+                </button>
+            </form>
+
+            <div id="dbTestResult" style="margin-top: 20px;"></div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="prevStep(1)">
+                    <i class="fas fa-arrow-left"></i> 上一步
+                </button>
+                <button class="btn btn-success" id="nextStep2" onclick="nextStep(3)" disabled>
+                    下一步 <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 步骤3: 管理员设置 -->
+        <div class="install-step" id="step3" style="display: none;">
+            <h2><i class="fas fa-user-shield"></i> 管理员设置</h2>
+            <p class="step-desc">设置系统管理员账号</p>
+
+            <form id="adminForm" class="config-form">
+                <div class="form-group">
+                    <label for="admin_username"><i class="fas fa-user"></i> 用户名</label>
+                    <input type="text" id="admin_username" value="admin" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="admin_password"><i class="fas fa-lock"></i> 密码</label>
+                    <input type="password" id="admin_password" value="admin123" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="admin_password_confirm"><i class="fas fa-lock"></i> 确认密码</label>
+                    <input type="password" id="admin_password_confirm" value="admin123" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="admin_email"><i class="fas fa-envelope"></i> 邮箱</label>
+                    <input type="email" id="admin_email" value="admin@example.com" required>
+                </div>
+            </form>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="prevStep(2)">
+                    <i class="fas fa-arrow-left"></i> 上一步
+                </button>
+                <button class="btn btn-success" onclick="startInstall()">
+                    <i class="fas fa-cog"></i> 开始安装
+                </button>
+            </div>
+        </div>
+
+        <!-- 步骤4: 完成安装 -->
+        <div class="install-step" id="step4" style="display: none;">
+            <h2><i class="fas fa-check-circle"></i> 安装进度</h2>
+            <p class="step-desc">正在安装系统...</p>
+
+            <div id="installLogs" class="install-logs"></div>
+
+            <div id="installComplete" style="display: none;" class="success-box">
+                <h3><i class="fas fa-check-circle"></i> 安装完成！</h3>
+                <p>系统已成功安装，您可以使用以下账号登录：</p>
+                <div class="account-info">
+                    <p><strong>用户名：</strong><span id="finalUsername"></span></p>
+                    <p><strong>密码：</strong><span id="finalPassword"></span></p>
+                </div>
+                <button class="btn btn-success btn-large" onclick="window.location.href='/login'">
+                    <i class="fas fa-sign-in-alt"></i> 前往登录
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/install/index.js') }}"></script>
+</body>
+</html>

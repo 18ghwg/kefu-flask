@@ -1,0 +1,74 @@
+/* Emoji选择器样式 */
+
+@import 'theme-variables.css';
+
+.emoji-picker {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    padding: 12px;
+    max-width: 350px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+}
+
+.emoji-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.emoji-btn:hover {
+    background: var(--input-bg-color);
+    transform: scale(1.2);
+}
+
+.emoji-btn:active {
+    transform: scale(1.1);
+}
+
+/* 滚动条样式 */
+.emoji-picker::-webkit-scrollbar {
+    width: 8px;
+}
+
+.emoji-picker::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.emoji-picker::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.emoji-picker::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* 触发按钮样式 */
+.emoji-trigger {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.emoji-trigger:hover {
+    transform: scale(1.1);
+}
+

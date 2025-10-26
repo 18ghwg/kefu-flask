@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}管理后台{% endblock %} - 客服系统</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/font-awesome/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-switcher.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    {% include 'includes/navbar.html' %}
+
+    <!-- 左侧导航栏 -->
+    {% include 'includes/sidebar.html' %}
+
+    <!-- 遮罩层（移动端） -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- 主内容区域 -->
+    <main class="main-content" id="mainContent">
+        <!-- 面包屑导航 -->
+        <div class="breadcrumb">
+            <a href="/admin"><i class="fas fa-home"></i> 首页</a>
+            {% block breadcrumb %}{% endblock %}
+        </div>
+        
+        <!-- 页面内容 -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 全局底部栏 -->
+    {% include 'includes/footer.html' %}
+
+    <!-- Socket.IO客户端 -->
+    <script src="{{ url_for('static', filename='js/vendor/socket.io.min.js') }}"></script>
+    
+    <!-- 主题管理器 -->
+    <script src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
+    
+    <!-- CSRF保护 -->
+    <script src="{{ url_for('static', filename='js/csrf_handler.js') }}"></script>
+    
+    <!-- 通用模态弹窗 -->
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+    
+    <!-- 基础脚本 -->
+    <script>
+        // 切换侧边栏
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        }
+
+        // 切换用户菜单
+        function toggleUserMenu() {
+            const menu = document.getElementById('userMenu');
+            menu.classList.toggle('show');
+        }
+
+        // 点击外部关闭用户菜单
+        window.addEventListener('click', function(e) {
+            if (!e.target.matches('.nav-link') && !e.target.closest('.dropdown')) {
+                const menu = document.getElementById('userMenu');
+                if (menu && menu.classList.contains('show')) {
+                    menu.classList.remove('show');
+                }
+            }
+        });
+
+        // 切换子菜单
+        function toggleSubmenu(element) {
+            const menuItem = element.parentElement;
+            const submenu = menuItem.querySelector('.submenu');
+            const arrow = element.querySelector('.submenu-arrow');
+            
+            // 关闭其他子菜单
+            document.querySelectorAll('.menu-item.has-submenu').forEach(item => {
+                if (item !== menuItem) {
+                    item.classList.remove('open');
+                }
+            });
+            
+            // 切换当前子菜单
+            menuItem.classList.toggle('open');
+        }
+
+        // 响应式侧边栏
+        let userToggledSidebar = false; // 标记用户是否手动切换过
+        
+        // 保存原始的 toggleSidebar 函数
+        const originalToggleSidebar = toggleSidebar;
+        
+        // 重新定义 toggleSidebar 为包装函数
+        toggleSidebar = function() {
+            userToggledSidebar = true; // 标记为用户手动操作
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            // 切换状态
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+            
+            // 移动端控制遮罩层
+            if (window.innerWidth <= 768 && overlay) {
+                overlay.classList.toggle('show');
+            }
+            
+            console.log('📱 侧边栏切换:', sidebar.classList.contains('collapsed') ? '收起' : '展开');
+        };
+        
+        // 点击遮罩层关闭侧边栏
+        document.addEventListener('DOMContentLoaded', function() {
+            const overlay = document.getElementById('sidebarOverlay');
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    if (window.innerWidth <= 768) {
+                        toggleSidebar();
+                    }
+                });
+            }
+            
+            // 移动端点击菜单链接后自动关闭侧边栏
+            const menuLinks = document.querySelectorAll('.menu-link[href], .submenu-link[href]');
+            menuLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    // 只在移动端且侧边栏展开时关闭
+                    if (window.innerWidth <= 768) {
+                        const sidebar = document.getElementById('sidebar');
+                        if (!sidebar.classList.contains('collapsed')) {
+                            console.log('📱 移动端：点击菜单，自动收起侧边栏');
+                            toggleSidebar();
+                        }
+                    }
+                });
+            });
+        });
+        
+        function checkScreenSize() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            // 如果用户手动切换过，就不再自动调整
+            if (userToggledSidebar) {
+                console.log('⏸️ 用户已手动操作，跳过自动调整');
+                return;
+            }
+            
+            if (window.innerWidth <= 768) {
+                // 移动端默认收起
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+                if (overlay) overlay.classList.remove('show');
+                console.log('📱 移动端：侧边栏自动收起');
+            } else {
+                // 桌面端默认展开
+                sidebar.classList.remove('collapsed');
+                mainContent.classList.remove('expanded');
+                if (overlay) overlay.classList.remove('show');
+                console.log('💻 桌面端：侧边栏自动展开');
+            }
+        }
+
+        window.addEventListener('resize', checkScreenSize);
+        checkScreenSize();
+    </script>
+    
+    <!-- 全局Socket.IO连接和消息通知 -->
+    <script src="{{ url_for('static', filename='js/admin/global_socket.js') }}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+

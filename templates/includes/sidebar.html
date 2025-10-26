@@ -1,0 +1,111 @@
+<!-- 左侧导航栏 -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h3>功能菜单</h3>
+    </div>
+    
+    <ul class="sidebar-menu">
+        {% if current_user.is_authenticated and current_user.level in ['super_manager', 'manager'] %}
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.index') }}" class="menu-link {% if request.path == '/admin' or request.path == '/admin/' %}active{% endif %}">
+                <i class="fas fa-home"></i>
+                <span>首页</span>
+            </a>
+        </li>
+        
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.dashboard') }}" class="menu-link {% if 'dashboard' in request.path %}active{% endif %}">
+                <i class="fas fa-chart-line"></i>
+                <span>数据看板</span>
+            </a>
+        </li>
+        
+        <li class="menu-divider"></li>
+        {% endif %}
+        
+        <li class="menu-item">
+            <a href="{{ url_for('service_panel.chat') }}" class="menu-link {% if '/service/chat' in request.path %}active{% endif %}">
+                <i class="fas fa-comments"></i>
+                <span>客服工作台</span>
+                <span class="badge badge-danger" id="unread-badge" style="display: none;">0</span>
+            </a>
+        </li>
+        
+        {% if current_user.is_authenticated and current_user.level in ['super_manager', 'manager'] %}
+        <li class="menu-divider"></li>
+        
+        <li class="menu-item has-submenu">
+            <div class="menu-link {% if 'service' in request.path %}active{% endif %}" onclick="toggleSubmenu(this)">
+                <i class="fas fa-user-tie"></i>
+                <span>客服管理</span>
+                <i class="fas fa-chevron-down submenu-arrow"></i>
+            </div>
+            <ul class="submenu">
+                <li><a href="{{ url_for('admin_panel.services') }}" class="submenu-link {% if 'services' in request.path and 'groups' not in request.path %}active{% endif %}">客服列表</a></li>
+                <li><a href="{{ url_for('admin_panel.service_groups') }}" class="submenu-link {% if 'groups' in request.path %}active{% endif %}">客服分组</a></li>
+            </ul>
+        </li>
+        
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.visitors') }}" class="menu-link {% if 'visitor' in request.path %}active{% endif %}">
+                <i class="fas fa-users"></i>
+                <span>访客管理</span>
+            </a>
+        </li>
+        
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.comments') }}" class="menu-link {% if 'comment' in request.path %}active{% endif %}">
+                <i class="fas fa-star"></i>
+                <span>评价管理</span>
+            </a>
+        </li>
+        
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.knowledge') }}" class="menu-link {% if 'knowledge' in request.path %}active{% endif %}">
+                <i class="fas fa-book"></i>
+                <span>知识库</span>
+            </a>
+        </li>
+        
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.faq_settings') }}" class="menu-link {% if 'faq' in request.path %}active{% endif %}">
+                <i class="fas fa-question-circle"></i>
+                <span>常见问题设置</span>
+            </a>
+        </li>
+        
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.greeting_settings') }}" class="menu-link {% if 'greeting' in request.path %}active{% endif %}">
+                <i class="fas fa-comment-dots"></i>
+                <span>问候语设置</span>
+            </a>
+        </li>
+        
+        <li class="menu-divider"></li>
+        
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.chat_history') }}" class="menu-link {% if 'chat-history' in request.path %}active{% endif %}">
+                <i class="fas fa-history"></i>
+                <span>聊天记录</span>
+            </a>
+        </li>
+        
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.operation_logs') }}" class="menu-link {% if 'operation-logs' in request.path %}active{% endif %}">
+                <i class="fas fa-file-alt"></i>
+                <span>操作日志</span>
+            </a>
+        </li>
+        {% endif %}
+        
+        {% if current_user.is_authenticated and current_user.level == 'super_manager' %}
+        <li class="menu-item">
+            <a href="{{ url_for('admin_panel.system_settings') }}" class="menu-link {% if 'settings' in request.path %}active{% endif %}">
+                <i class="fas fa-cog"></i>
+                <span>系统设置</span>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</aside>
+

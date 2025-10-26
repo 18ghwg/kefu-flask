@@ -1,0 +1,52 @@
+/* 星级评分输入样式 */
+
+@import 'theme-variables.css';
+
+.star-rating-input {
+    display: inline-flex;
+    gap: 8px;
+    font-size: 48px;
+    cursor: pointer;
+}
+
+.star-rating-input .star {
+    color: var(--border-color);
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.star-rating-input .star:hover,
+.star-rating-input .star.active {
+    color: #fbbf24;
+    transform: scale(1.1);
+}
+
+.star-rating-input .star.active {
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+/* 评价标签样式 */
+.comment-tag {
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--text-color-light);
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.comment-tag:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.comment-tag.selected {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+    color: white;
+    border-color: var(--primary-color);
+}
+

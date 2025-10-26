@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>在线客服</title>
+    <link href="{{ url_for('static', filename='css/vendor/fonts/inter.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/font-awesome/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/emoji-picker.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/visitor_chat.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/visitor_chat_rating.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- 头部 -->
+        <div class="chat-header">
+            <div class="header-info">
+                <div class="service-avatar">👨‍💼</div>
+                <div class="service-info">
+                    <h3 id="serviceName">智能客服</h3>
+                    <div class="service-status">
+                        <span class="status-dot" style="background: #9ca3af;"></span>
+                        <span id="statusText">连接中...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" title="评价客服" onclick="showServiceRatingModal()">⭐</button>
+                <button class="header-btn" title="刷新" onclick="location.reload()">🔄</button>
+                <button class="header-btn" title="结束会话" onclick="endChat()">✖️</button>
+            </div>
+        </div>
+
+        <!-- 连接状态提示 -->
+        <div class="connection-status" id="connectionStatus">
+            正在连接客服...
+        </div>
+
+        <!-- 消息区域 -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <h4>👋 欢迎使用在线客服</h4>
+                <p>我们的客服人员会尽快为您服务<br>请描述您的问题</p>
+            </div>
+        </div>
+
+        <!-- 输入状态 -->
+        <div class="typing-indicator" id="typingIndicator">
+            客服正在输入...
+        </div>
+
+        <!-- 常见问题气泡 -->
+        <div class="faq-bubbles" id="faqBubbles">
+            <!-- 动态加载 -->
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="chat-input">
+            <div class="input-wrapper">
+                <div class="input-actions">
+                    <button class="input-btn emoji-trigger" id="emojiBtn" title="表情">😊</button>
+                    <button class="input-btn" id="imageBtn" title="发送图片">🖼️</button>
+                    <input type="file" id="imageInput" style="display: none;" accept="image/*" />
+                </div>
+                <input type="text" id="messageInput" placeholder="输入消息..." />
+                <button id="sendBtn">➤</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 文件上传进度 -->
+    <div id="uploadProgress" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 10000;">
+        <div style="text-align: center; margin-bottom: 15px;">
+            <div style="font-size: 48px; margin-bottom: 10px;">📤</div>
+            <div style="font-size: 16px; font-weight: 600; margin-bottom: 5px;" id="uploadFileName">上传文件中...</div>
+            <div style="font-size: 13px; color: #6b7280;" id="uploadFileSize">0 KB</div>
+        </div>
+        <div style="width: 300px; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+            <div id="uploadProgressBar" style="height: 100%; background: linear-gradient(90deg, var(--primary-color), var(--primary-hover-color)); width: 0%; transition: width 0.3s;"></div>
+        </div>
+        <div style="text-align: center; margin-top: 10px; font-size: 14px; color: #374151;" id="uploadPercent">0%</div>
+    </div>
+
+    <!-- 通用模态弹窗（访客专用） -->
+    <div id="modalOverlay" class="visitor-modal-overlay" style="display: none !important;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 id="modalTitle" class="modal-title">提示</h3>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="modalIcon" class="modal-icon"></div>
+                <p id="modalMessage" class="modal-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="modalConfirmBtn" class="modal-btn modal-btn-primary" onclick="modalConfirmAction()">确定</button>
+                <button id="modalCancelBtn" class="modal-btn modal-btn-secondary" onclick="closeModal()" style="display: none;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 评价弹窗 -->
+    <div id="commentModal" class="visitor-modal-overlay" style="display: none !important;">
+        <div class="modal-container" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">⭐ 服务评价</h3>
+                <button class="modal-close" onclick="closeCommentModal()">×</button>
+            </div>
+            <div class="modal-body" style="padding: 30px;">
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <div style="font-size: 16px; color: #6b7280; margin-bottom: 15px;">
+                        请为 <span id="commentServiceName" style="font-weight: 600; color: #1f2937;">客服</span> 的服务进行评价
+                    </div>
+                    
+                    <!-- 星级评分 -->
+                    <div style="margin-bottom: 20px;">
+                        <div class="star-rating-input" id="starRating">
+                            <span class="star" data-value="1">☆</span>
+                            <span class="star" data-value="2">☆</span>
+                            <span class="star" data-value="3">☆</span>
+                            <span class="star" data-value="4">☆</span>
+                            <span class="star" data-value="5">☆</span>
+                        </div>
+                        <div id="ratingText" style="margin-top: 10px; font-size: 14px; color: #9ca3af;">点击星星进行评分</div>
+                    </div>
+                </div>
+
+                <!-- 评价标签 -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 10px;">
+                        评价标签（可多选）
+                    </label>
+                    <div id="commentTags" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                </div>
+
+                <!-- 文字评价 -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
+                        评价内容（选填）
+                    </label>
+                    <textarea 
+                        id="commentContent" 
+                        placeholder="请分享您的使用体验..." 
+                        style="width: 100%; min-height: 100px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; resize: vertical; font-family: inherit;"
+                    ></textarea>
+                </div>
+
+                <input type="hidden" id="commentQueueId">
+                <input type="hidden" id="commentServiceId">
+            </div>
+            <div class="modal-footer" style="gap: 10px;">
+                <button onclick="submitComment()" class="modal-btn modal-btn-primary" style="flex: 1;">提交评价</button>
+                <button onclick="skipComment()" class="modal-btn modal-btn-secondary">跳过</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 客服评价弹窗 -->
+    <div id="serviceRatingModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10000; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 16px; padding: 30px; max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+            <!-- 标题 -->
+            <div style="text-align: center; margin-bottom: 25px;">
+                <h3 style="font-size: 20px; font-weight: 600; color: #1f2937; margin: 0 0 10px 0;">评价客服</h3>
+                <p style="font-size: 14px; color: #6b7280; margin: 0;">您的评价将帮助我们提升服务质量</p>
+            </div>
+            
+            <!-- 星级评分 -->
+            <div style="text-align: center; margin-bottom: 25px;">
+                <div style="font-size: 14px; color: #374151; margin-bottom: 12px; font-weight: 500;">请选择评分</div>
+                <div style="font-size: 40px; letter-spacing: 8px;">
+                    <span id="serviceStar1" onclick="updateServiceStars(1)" style="cursor: pointer; color: #d1d5db; transition: all 0.2s;">☆</span>
+                    <span id="serviceStar2" onclick="updateServiceStars(2)" style="cursor: pointer; color: #d1d5db; transition: all 0.2s;">☆</span>
+                    <span id="serviceStar3" onclick="updateServiceStars(3)" style="cursor: pointer; color: #d1d5db; transition: all 0.2s;">☆</span>
+                    <span id="serviceStar4" onclick="updateServiceStars(4)" style="cursor: pointer; color: #d1d5db; transition: all 0.2s;">☆</span>
+                    <span id="serviceStar5" onclick="updateServiceStars(5)" style="cursor: pointer; color: #d1d5db; transition: all 0.2s;">☆</span>
+                </div>
+                <div style="font-size: 12px; color: #9ca3af; margin-top: 8px;">点击星星选择评分</div>
+            </div>
+            
+            <!-- 评价内容 -->
+            <div style="margin-bottom: 25px;">
+                <label style="display: block; font-size: 14px; color: #374151; margin-bottom: 8px; font-weight: 500;">评价内容（可选）</label>
+                <textarea id="serviceRatingComment" 
+                    placeholder="请分享您的体验，帮助我们做得更好..."
+                    style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; resize: vertical; min-height: 100px; font-family: inherit; outline: none; transition: border-color 0.2s;"
+                    onfocus="this.style.borderColor='var(--primary-color)'"
+                    onblur="this.style.borderColor='#d1d5db'"></textarea>
+            </div>
+            
+            <!-- 按钮 -->
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeServiceRatingModal()" 
+                    style="flex: 1; padding: 12px; border: 1px solid #d1d5db; background: white; color: #374151; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s;"
+                    onmouseover="this.style.background='#f3f4f6'" 
+                    onmouseout="this.style.background='white'">取消</button>
+                <button onclick="submitServiceRating()" 
+                    style="flex: 2; padding: 12px; border: none; background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%); color: white; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s;"
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)'" 
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">提交评价</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.IO 客户端 -->
+    <script src="{{ url_for('static', filename='js/vendor/socket.io.min.js') }}"></script>
+    <!-- 主题管理器 -->
+    <script src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
+    <!-- CSRF保护 -->
+    <!-- 配置参数 -->
+    <script>
+        // 从URL或模板传递的参数
+        window.CHAT_CONFIG = {
+            special: '{{ special or "" }}'  // 指定客服ID（专属链接）
+        };
+    </script>
+    <script src="{{ url_for('static', filename='js/csrf_handler.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/emoji-picker.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/visitor_assignment.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/visitor_chat.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/visitor_chat_config.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}客服工作台{% endblock %} - 客服系统</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/font-awesome/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-switcher.css') }}">
+    <link href="{{ url_for('static', filename='css/vendor/fonts/inter.css') }}" rel="stylesheet">
+    <style>
+        /* 客服工作台特殊布局 */
+        .main-content {
+            padding: 0 !important;
+            height: calc(100vh - 60px - 40px) !important; /* 减去导航栏60px和底部栏40px */
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        /* 响应式：小屏幕调整主内容高度 */
+        @media (max-width: 768px) {
+            .main-content {
+                height: calc(100vh - 60px - 35px) !important;
+            }
+        }
+
+        .page-header {
+            display: none; /* 隐藏页面标题 */
+        }
+
+        .breadcrumb {
+            display: none; /* 隐藏面包屑 */
+        }
+
+        /* Badge样式 */
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+
+        .badge-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+            color: white;
+        }
+
+        .badge-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .badge-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        .badge-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    {% include 'includes/navbar.html' %}
+
+    <!-- 左侧导航栏 -->
+    {% include 'includes/sidebar.html' %}
+
+    <!-- 遮罩层（移动端） -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- 主内容区域 -->
+    <main class="main-content" id="mainContent">
+        <!-- 页面内容 -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 全局底部栏 -->
+    {% include 'includes/footer.html' %}
+
+    <!-- 基础脚本 -->
+    <script>
+        // 切换侧边栏
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        }
+
+        // 切换用户菜单
+        function toggleUserMenu() {
+            const menu = document.getElementById('userMenu');
+            menu.classList.toggle('show');
+        }
+
+        // 点击外部关闭用户菜单
+        window.addEventListener('click', function(e) {
+            if (!e.target.matches('.nav-link') && !e.target.closest('.dropdown')) {
+                const menu = document.getElementById('userMenu');
+                if (menu && menu.classList.contains('show')) {
+                    menu.classList.remove('show');
+                }
+            }
+        });
+
+        // 切换子菜单
+        function toggleSubmenu(element) {
+            const menuItem = element.parentElement;
+            const submenu = menuItem.querySelector('.submenu');
+            const arrow = element.querySelector('.submenu-arrow');
+            
+            // 关闭其他子菜单
+            document.querySelectorAll('.menu-item.has-submenu').forEach(item => {
+                if (item !== menuItem) {
+                    item.classList.remove('open');
+                }
+            });
+            
+            // 切换当前子菜单
+            menuItem.classList.toggle('open');
+        }
+
+        // 响应式侧边栏 - 客服工作台默认收起
+        let userToggledSidebar = false; // 标记用户是否手动切换过
+        
+        // 重新定义 toggleSidebar
+        toggleSidebar = function() {
+            userToggledSidebar = true; // 标记为用户手动操作
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            // 切换状态
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+            
+            // 移动端控制遮罩层
+            if (window.innerWidth <= 768 && overlay) {
+                overlay.classList.toggle('show');
+            }
+            
+            console.log('📱 侧边栏切换:', sidebar.classList.contains('collapsed') ? '收起' : '展开');
+        };
+        
+        // 点击遮罩层关闭侧边栏
+        document.addEventListener('DOMContentLoaded', function() {
+            const overlay = document.getElementById('sidebarOverlay');
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    if (window.innerWidth <= 768) {
+                        toggleSidebar();
+                    }
+                });
+            }
+        });
+        
+        function checkScreenSize() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            // 如果用户手动切换过，就不再自动调整
+            if (userToggledSidebar) {
+                console.log('⏸️ 用户已手动操作，跳过自动调整');
+                return;
+            }
+            
+            // 客服工作台默认收起侧边栏以获得更多聊天空间
+            sidebar.classList.add('collapsed');
+            mainContent.classList.add('expanded');
+            if (overlay) overlay.classList.remove('show');
+            console.log('💬 客服工作台：侧边栏自动收起');
+        }
+
+        window.addEventListener('resize', checkScreenSize);
+        checkScreenSize();
+    </script>
+    
+    <!-- 主题管理器 -->
+    <script src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/csrf_handler.js') }}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>访客详情 - 客服系统</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7fa;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            color: #374151;
+            text-decoration: none;
+            margin-bottom: 20px;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: #f9fafb;
+        }
+
+        .detail-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+
+        .detail-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f3f4f6;
+        }
+
+        .visitor-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .visitor-info h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .visitor-info p {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .info-item {
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .info-item label {
+            display: block;
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 5px;
+        }
+
+        .info-item .value {
+            font-size: 14px;
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tag {
+            padding: 5px 12px;
+            background: #e0e7ff;
+            color: #3730a3;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-online {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .detail-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/admin/visitors" class="back-btn">
+            <i class="fas fa-arrow-left"></i> 返回访客列表
+        </a>
+
+        <div class="detail-card">
+            <div class="detail-header" id="visitorHeader">
+                <!-- 动态加载 -->
+            </div>
+
+            <div class="section-title">
+                <i class="fas fa-info-circle"></i> 基本信息
+            </div>
+            <div class="info-grid" id="basicInfo">
+                <!-- 动态加载 -->
+            </div>
+        </div>
+
+        <div class="detail-card">
+            <div class="section-title">
+                <i class="fas fa-globe"></i> 来源信息
+            </div>
+            <div class="info-grid" id="sourceInfo">
+                <!-- 动态加载 -->
+            </div>
+        </div>
+
+        <div class="detail-card">
+            <div class="section-title">
+                <i class="fas fa-laptop"></i> 设备信息
+            </div>
+            <div class="info-grid" id="deviceInfo">
+                <!-- 动态加载 -->
+            </div>
+        </div>
+
+        <div class="detail-card">
+            <div class="section-title">
+                <i class="fas fa-chart-line"></i> 统计信息
+            </div>
+            <div class="info-grid" id="statsInfo">
+                <!-- 动态加载 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const visitorId = window.location.pathname.split('/').pop();
+
+        async function loadVisitorDetail() {
+            try {
+                const response = await fetch(`/api/visitor/detail/${visitorId}`);
+                const result = await response.json();
+                
+                if (result.code === 0) {
+                    renderDetail(result.data);
+                } else {
+                    alert('加载失败：' + result.msg);
+                }
+            } catch (error) {
+                alert('加载失败：' + error.message);
+            }
+        }
+
+        function renderDetail(visitor) {
+            // 头部
+            document.getElementById('visitorHeader').innerHTML = `
+                <img src="${visitor.avatar}" alt="Avatar" class="visitor-avatar">
+                <div class="visitor-info">
+                    <h1>${visitor.visitor_name}</h1>
+                    <p>访客ID: ${visitor.visitor_id}</p>
+                    <span class="status-badge status-${visitor.state}">
+                        ${visitor.state === 'online' ? '在线' : '离线'}
+                    </span>
+                    ${visitor.is_blacklist ? '<span class="status-badge" style="background:#fee2e2;color:#991b1b;margin-left:5px;">黑名单</span>' : ''}
+                </div>
+            `;
+
+            // 基本信息
+            document.getElementById('basicInfo').innerHTML = `
+                <div class="info-item">
+                    <label>真实姓名</label>
+                    <div class="value">${visitor.name || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>联系电话</label>
+                    <div class="value">${visitor.tel || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>联系方式</label>
+                    <div class="value">${visitor.connect || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>备注</label>
+                    <div class="value">${visitor.comment || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>标签</label>
+                    <div class="tags">
+                        ${visitor.tags && visitor.tags.length ? visitor.tags.map(tag => `<span class="tag">${tag}</span>`).join('') : '<span class="value">-</span>'}
+                    </div>
+                </div>
+            `;
+
+            // 来源信息
+            document.getElementById('sourceInfo').innerHTML = `
+                <div class="info-item">
+                    <label>IP地址</label>
+                    <div class="value">${visitor.ip}</div>
+                </div>
+                <div class="info-item">
+                    <label>来源页面</label>
+                    <div class="value">${visitor.from_url || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>引荐来源</label>
+                    <div class="value">${visitor.referrer || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>UTM来源</label>
+                    <div class="value">${visitor.utm_source || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>UTM媒介</label>
+                    <div class="value">${visitor.utm_medium || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>UTM活动</label>
+                    <div class="value">${visitor.utm_campaign || '-'}</div>
+                </div>
+            `;
+
+            // 设备信息
+            document.getElementById('deviceInfo').innerHTML = `
+                <div class="info-item">
+                    <label>设备类型</label>
+                    <div class="value">${visitor.device || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>操作系统</label>
+                    <div class="value">${visitor.os || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>浏览器</label>
+                    <div class="value">${visitor.browser || '-'}</div>
+                </div>
+            `;
+
+            // 统计信息
+            document.getElementById('statsInfo').innerHTML = `
+                <div class="info-item">
+                    <label>访问次数</label>
+                    <div class="value">${visitor.login_times} 次</div>
+                </div>
+                <div class="info-item">
+                    <label>聊天记录数</label>
+                    <div class="value">${visitor.chat_count || 0} 条</div>
+                </div>
+                <div class="info-item">
+                    <label>首次访问</label>
+                    <div class="value">${visitor.first_visit_time ? new Date(visitor.first_visit_time).toLocaleString('zh-CN') : '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>最后访问</label>
+                    <div class="value">${visitor.last_visit_time ? new Date(visitor.last_visit_time).toLocaleString('zh-CN') : '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>最后消息时间</label>
+                    <div class="value">${visitor.msg_time ? new Date(visitor.msg_time).toLocaleString('zh-CN') : '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>创建时间</label>
+                    <div class="value">${visitor.created_at ? new Date(visitor.created_at).toLocaleString('zh-CN') : '-'}</div>
+                </div>
+            `;
+        }
+
+        window.addEventListener('DOMContentLoaded', loadVisitorDetail);
+    </script>
+</body>
+</html>
+

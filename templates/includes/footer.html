@@ -1,0 +1,111 @@
+<!-- 全局底部栏 -->
+<footer class="global-footer">
+    <div class="footer-content">
+        <div class="footer-left">
+            <span>© 2025 客服管理系统</span>
+            <span class="separator">|</span>
+            <span>版本 v1.0.0</span>
+        </div>
+        <div class="footer-right">
+            <span>技术支持</span>
+            <span class="separator">|</span>
+            <span id="currentTime"></span>
+        </div>
+    </div>
+</footer>
+
+<style>
+    /* 全局底部栏样式 */
+    .global-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 40px;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .footer-content {
+        max-width: 1400px;
+        width: 100%;
+        padding: 0 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+    }
+
+    .footer-left,
+    .footer-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .footer-left .separator,
+    .footer-right .separator {
+        opacity: 0.5;
+    }
+
+    #currentTime {
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* 响应式：小屏幕隐藏部分信息 */
+    @media (max-width: 768px) {
+        .global-footer {
+            height: 35px;
+        }
+
+        .footer-content {
+            font-size: 11px;
+        }
+
+        .footer-right span:first-child,
+        .footer-right .separator:first-of-type {
+            display: none;
+        }
+    }
+</style>
+
+<script>
+    (function() {
+        // 底部时间更新
+        function updateFooterTime() {
+            const timeElement = document.getElementById('currentTime');
+            if (timeElement) {
+                const now = new Date();
+                const timeStr = now.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                timeElement.textContent = timeStr;
+            }
+        }
+
+        // 初始化并每秒更新时间
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                updateFooterTime();
+                setInterval(updateFooterTime, 1000);
+            });
+        } else {
+            updateFooterTime();
+            setInterval(updateFooterTime, 1000);
+        }
+    })();
+</script>
+
+

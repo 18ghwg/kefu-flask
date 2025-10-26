@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>管理员登录 - 客服系统</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/font-awesome/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common/login-new.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <!-- 左侧说明 -->
+        <div class="login-left">
+            <h2>🎯 智能客服系统</h2>
+            <p>欢迎使用专业的客服管理平台</p>
+            <p>提供实时对话、智能机器人、访客管理等完整功能</p>
+            <ul class="features-list">
+                <li>实时双向通信</li>
+                <li>智能机器人自动回复</li>
+                <li>完整的访客管理</li>
+                <li>数据统计与分析</li>
+                <li>多端设备支持</li>
+                <li>安全可靠的架构</li>
+            </ul>
+        </div>
+
+        <!-- 右侧登录表单 -->
+        <div class="login-right">
+            <div class="login-header">
+                <h1>管理员登录</h1>
+                <p>请输入您的账号密码</p>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-error">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            {% if success %}
+            <div class="alert alert-success">
+                {{ success }}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/login" id="loginForm">
+                <div class="form-group">
+                    <label for="username">
+                        <i class="fas fa-user"></i> 用户名
+                    </label>
+                    <input type="text" id="username" name="username" 
+                           placeholder="请输入用户名" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">
+                        <i class="fas fa-lock"></i> 密码
+                    </label>
+                    <input type="password" id="password" name="password" 
+                           placeholder="请输入密码" required>
+                </div>
+
+                <div class="form-options">
+                    <label class="remember-me">
+                        <input type="checkbox" name="remember" value="1">
+                        <span>记住我</span>
+                    </label>
+                    <a href="#" class="forgot-password">忘记密码？</a>
+                </div>
+
+                <input type="hidden" name="verify_token" id="verifyToken" value="">
+
+                <button type="button" class="login-btn" id="loginBtn">
+                    <i class="fas fa-sign-in-alt"></i> 登 录
+                </button>
+            </form>
+            
+            <!-- 验证码弹窗 -->
+            <div class="captcha-modal" id="captchaModal">
+                <div class="captcha-modal-content">
+                    <div class="captcha-modal-header">
+                        <h3><i class="fas fa-shield-alt"></i> 安全验证</h3>
+                        <button class="captcha-modal-close" id="closeModal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="captcha-modal-body">
+                        <p class="captcha-hint">请拖动滑块完成拼图验证</p>
+                        
+                        <!-- 拼图画布容器 -->
+                        <div class="captcha-canvas-container" id="captchaCanvas">
+                            <!-- Canvas将在这里动态创建 -->
+                        </div>
+                        
+                        <!-- 滑动轨道 -->
+                        <div class="captcha-track">
+                            <div class="captcha-slider" id="captchaSlider">
+                                <i class="fas fa-chevron-right"></i>
+                            </div>
+                            <div class="captcha-text" id="captchaText">拖动滑块完成拼图</div>
+                            <div class="captcha-progress" id="captchaProgress"></div>
+                        </div>
+                        
+                        <div class="captcha-status" id="captchaStatus"></div>
+                        
+                        <div class="captcha-actions">
+                            <button type="button" class="captcha-refresh-btn" id="refreshCaptcha">
+                                <i class="fas fa-redo"></i> 刷新验证码
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="back-home">
+                <a href="/">← 返回首页</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主题管理器 -->
+    <script src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/csrf_handler.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/common/login.js') }}"></script>
+</body>
+</html>

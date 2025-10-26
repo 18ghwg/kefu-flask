@@ -1,0 +1,181 @@
+{% extends "admin/base.html" %}
+
+{% block title %}聊天记录{% endblock %}
+
+{% block nav_history %}active{% endblock %}
+
+{% block breadcrumb %}
+<span><i class="fas fa-history"></i> <i class="fas fa-chevron-right"></i> 聊天记录</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/chat_history.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="container">
+        <!-- 页面头部 -->
+        <div class="page-header">
+            <div class="header-left">
+                <h1><i class="fas fa-history"></i> 聊天记录</h1>
+                <p class="subtitle">查看和管理所有聊天记录</p>
+            </div>
+            <div class="header-right">
+                <button class="btn-success" onclick="exportHistory()">
+                    <i class="fas fa-file-export"></i> 导出记录
+                </button>
+                <button class="btn-secondary" onclick="window.location.href='/admin'">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="totalMessages">0</div>
+                    <div class="stat-label">总消息数</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <i class="fas fa-user-friends"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="totalSessions">0</div>
+                    <div class="stat-label">会话数</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="avgDuration">0分钟</div>
+                    <div class="stat-label">平均时长</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="avgResponse">0秒</div>
+                    <div class="stat-label">平均响应</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 筛选栏 -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label><i class="fas fa-calendar"></i> 开始日期</label>
+                <input type="date" id="startDate" class="form-control">
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fas fa-calendar"></i> 结束日期</label>
+                <input type="date" id="endDate" class="form-control">
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fas fa-user"></i> 访客</label>
+                <input type="text" id="visitorKeyword" class="form-control" placeholder="访客ID或名称">
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fas fa-user-tie"></i> 客服</label>
+                <select id="serviceId" class="form-control">
+                    <option value="">全部客服</option>
+                    <!-- 动态加载 -->
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label><i class="fas fa-search"></i> 关键词</label>
+                <input type="text" id="keyword" class="form-control" placeholder="搜索消息内容">
+            </div>
+
+            <div class="filter-actions">
+                <button class="btn-primary" onclick="searchHistory()">
+                    <i class="fas fa-search"></i> 搜索
+                </button>
+                <button class="btn-secondary" onclick="resetFilters()">
+                    <i class="fas fa-redo"></i> 重置
+                </button>
+            </div>
+        </div>
+
+        <!-- 聊天记录列表 -->
+        <div class="history-section">
+            <div class="section-header">
+                <h3><i class="fas fa-list"></i> 聊天记录</h3>
+                <div class="view-mode">
+                    <button class="mode-btn active" data-mode="session" onclick="switchMode('session')">
+                        <i class="fas fa-th-list"></i> 按会话
+                    </button>
+                    <button class="mode-btn" data-mode="message" onclick="switchMode('message')">
+                        <i class="fas fa-comments"></i> 按消息
+                    </button>
+                </div>
+            </div>
+
+            <!-- 会话视图 -->
+            <div id="sessionView" class="history-view">
+                <div class="sessions-list" id="sessionsList">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+            <!-- 消息视图 -->
+            <div id="messageView" class="history-view" style="display: none;">
+                <div class="messages-list" id="messagesList">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+            <!-- 分页 -->
+            <div class="pagination">
+                <button class="page-btn" id="prevBtn" onclick="changePage(-1)" disabled>
+                    <i class="fas fa-chevron-left"></i> 上一页
+                </button>
+                <span class="page-info" id="pageInfo">第 1 / 1 页</span>
+                <button class="page-btn" id="nextBtn" onclick="changePage(1)" disabled>
+                    下一页 <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 消息详情模态框 -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>会话详情</h3>
+                <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="sessionDetail">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeDetailModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/admin/chat_history.js') }}"></script>
+{% endblock %}
+

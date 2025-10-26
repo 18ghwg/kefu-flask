@@ -1,0 +1,57 @@
+"""
+Gunicorn 配置文件（模板）
+用于生产环境部署 Flask-SocketIO 应用
+使用方法：python generate_gunicorn_config.py
+"""
+
+# ========== 服务器绑定 ==========
+# ⚠️ 重要：Gunicorn 监听内部端口，由 Nginx 反向代理
+bind = '127.0.0.1:{{GUNICORN_PORT}}'  # 仅监听本地端口（不对外）
+backlog = 2048  # 挂起连接的最大数量
+
+# ========== Worker 配置 ==========
+# ⚠️ 重要：必须使用 eventlet worker 才能支持 WebSocket
+worker_class = 'eventlet'  # 使用 eventlet 异步 worker
+workers = {{WORKERS}}  # Worker 进程数（建议：CPU核心数 * 2 + 1）
+worker_connections = 1000  # 每个 worker 的最大并发连接数
+timeout = 120  # Worker 超时时间（秒），WebSocket 需要较长时间
+
+# ========== 进程管理 ==========
+daemon = False  # 是否后台运行（False = 前台运行，方便宝塔管理）
+pidfile = '{{PROJECT_ROOT}}/gunicorn.pid'  # PID 文件路径
+user = '{{USER}}'  # 运行用户
+group = '{{GROUP}}'  # 运行用户组
+
+# ========== 日志配置 ==========
+loglevel = 'info'  # 日志级别：debug, info, warning, error, critical
+accesslog = '{{LOG_DIR}}/kefu-flask-access.log'  # 访问日志
+errorlog = '{{LOG_DIR}}/kefu-flask-error.log'  # 错误日志
+access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
+
+# ========== 进程命名 ==========
+proc_name = 'kefu-flask'  # 进程名称
+
+# ========== 服务器机制 ==========
+# 优雅重启
+graceful_timeout = 30  # 优雅关闭的超时时间
+keepalive = 5  # Keep-Alive 连接的超时时间
+
+# 预加载应用（提高性能，但会增加内存占用）
+preload_app = True  # 在 fork worker 前加载应用代码
+
+# ========== SSL 配置（如果使用 HTTPS）==========
+# keyfile = '/path/to/ssl/key.pem'
+# certfile = '/path/to/ssl/cert.pem'
+
+# ========== 调试配置 ==========
+# reload = True  # 代码变更时自动重启（仅开发环境使用）
+# reload_extra_files = []  # 额外监视的文件列表
+
+# ========== 环境变量 ==========
+# 可以在这里设置环境变量
+# raw_env = [
+#     'REDIS_HOST=localhost',
+#     'REDIS_PORT=6379',
+# ]
+
+

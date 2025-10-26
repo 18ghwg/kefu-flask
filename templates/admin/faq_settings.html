@@ -1,0 +1,585 @@
+{% extends "admin/base.html" %}
+
+{% block title %}常见问题设置{% endblock %}
+
+{% block extra_css %}
+<!-- Quill富文本编辑器 -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .search-box {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .search-box input {
+        flex: 1;
+        max-width: 300px;
+    }
+    
+    .faq-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .faq-table th {
+        background: #f5f5f5;
+        padding: 15px;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .faq-table td {
+        padding: 15px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .faq-table tr:hover {
+        background: #fafafa;
+    }
+    
+    .answer-preview {
+        max-width: 400px;
+        max-height: 60px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+    }
+    
+    .status-active {
+        background: #e7f4e7;
+        color: #2d7a2d;
+    }
+    
+    .status-inactive {
+        background: #f5f5f5;
+        color: #666;
+    }
+    
+    .action-btn {
+        padding: 5px 10px;
+        margin: 0 3px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    
+    .btn-edit {
+        background: #409eff;
+        color: white;
+    }
+    
+    .btn-delete {
+        background: #f56c6c;
+        color: white;
+    }
+    
+    /* 模态框样式 */
+    .faq-modal-overlay {
+        display: none !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .faq-modal-overlay.active {
+        display: flex !important;
+    }
+    
+    .modal-container {
+        background: white;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 800px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    
+    .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .modal-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #999;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        line-height: 30px;
+    }
+    
+    .modal-close:hover {
+        color: #333;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #333;
+    }
+    
+    .form-label .required {
+        color: #f56c6c;
+    }
+    
+    .form-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .form-input:focus {
+        outline: none;
+        border-color: #409eff;
+        box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+    }
+    
+    .form-select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .editor-container {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    #editor {
+        height: 300px;
+        background: white;
+    }
+    
+    .modal-footer {
+        padding: 20px;
+        border-top: 1px solid #eee;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+    
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .btn-primary {
+        background: #409eff;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background: #66b1ff;
+    }
+    
+    .btn-secondary {
+        background: #f5f5f5;
+        color: #333;
+    }
+    
+    .btn-secondary:hover {
+        background: #e0e0e0;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+    }
+    
+    .empty-state-icon {
+        font-size: 64px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>📋 常见问题设置</h2>
+    <button class="btn btn-primary" onclick="openAddModal()">
+        <i class="fas fa-plus"></i> 添加问题
+    </button>
+</div>
+
+<div class="search-box">
+    <input type="text" id="searchKeyword" class="form-input" placeholder="搜索关键词..." onkeyup="handleSearch()">
+    <button class="btn btn-secondary" onclick="loadQuestions()">
+        <i class="fas fa-sync"></i> 刷新
+    </button>
+</div>
+
+<div id="tableContainer">
+    <table class="faq-table">
+        <thead>
+            <tr>
+                <th width="8%">ID</th>
+                <th width="30%">问题</th>
+                <th width="40%">答案</th>
+                <th width="8%">排序</th>
+                <th width="8%">状态</th>
+                <th width="14%">操作</th>
+            </tr>
+        </thead>
+        <tbody id="faqTableBody">
+            <!-- 数据通过JS动态加载 -->
+        </tbody>
+    </table>
+</div>
+
+<!-- 添加/编辑模态框 -->
+<div class="faq-modal-overlay" id="faqModal">
+    <div class="modal-container">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modalTitle">添加常见问题</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editQid">
+            
+            <div class="form-group">
+                <label class="form-label">
+                    <span class="required">*</span> 常见问题
+                </label>
+                <input type="text" id="question" class="form-input" placeholder="请输入常见问题，如：如何退货？售后服务时间？" maxlength="200">
+                <small style="color: #999;">提示：问题将显示在访客聊天界面的FAQ气泡中</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">排序</label>
+                <input type="number" id="sort" class="form-input" value="0" min="0" placeholder="数字越大越靠前">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">
+                    <span class="required">*</span> 是否显示
+                </label>
+                <select id="status" class="form-select">
+                    <option value="1">显示</option>
+                    <option value="0">不显示</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">
+                    <span class="required">*</span> 问题回答
+                </label>
+                <div class="editor-container">
+                    <div id="editor"></div>
+                </div>
+                <small style="color: #999;">提示：支持富文本格式，可插入链接、图片等</small>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveFaq()">保存</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script>
+    let quill;
+    let currentEditId = null;
+    
+    // 初始化Quill编辑器
+    function initQuillEditor() {
+        quill = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['blockquote', 'code-block'],
+                    [{ 'header': 1 }, { 'header': 2 }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'align': [] }],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            },
+            placeholder: '请输入问题的答案...'
+        });
+    }
+    
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        initQuillEditor();
+        loadQuestions();
+    });
+    
+    // 加载问题列表
+    function loadQuestions(keyword = '') {
+        let url = '/api/question/list';
+        if (keyword) {
+            url += `?keyword=${encodeURIComponent(keyword)}`;
+        }
+        
+        fetch(url)
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 0) {
+                    renderTable(result.data);
+                } else {
+                    showError('加载失败：' + result.msg);
+                }
+            })
+            .catch(err => {
+                showError('网络错误：' + err.message);
+            });
+    }
+    
+    // 渲染表格
+    function renderTable(questions) {
+        const tbody = document.getElementById('faqTableBody');
+        
+        if (!questions || questions.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="empty-state">
+                        <div class="empty-state-icon">📝</div>
+                        <div>暂无常见问题，点击右上角"添加问题"按钮添加</div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = questions.map(q => `
+            <tr>
+                <td>${q.qid}</td>
+                <td><strong>${escapeHtml(q.question)}</strong></td>
+                <td>
+                    <div class="answer-preview">${q.answer_text || stripHtml(q.answer)}</div>
+                </td>
+                <td>${q.sort || 0}</td>
+                <td>
+                    <span class="status-badge ${q.status === 1 ? 'status-active' : 'status-inactive'}">
+                        ${q.status === 1 ? '显示' : '不显示'}
+                    </span>
+                </td>
+                <td>
+                    <button class="action-btn btn-edit" onclick="editFaq(${q.qid})">编辑</button>
+                    <button class="action-btn btn-delete" onclick="deleteFaq(${q.qid})">删除</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    // 搜索处理
+    function handleSearch() {
+        const keyword = document.getElementById('searchKeyword').value.trim();
+        loadQuestions(keyword);
+    }
+    
+    // 打开添加模态框
+    function openAddModal() {
+        console.log('打开添加模态框');
+        currentEditId = null;
+        document.getElementById('modalTitle').textContent = '添加常见问题';
+        document.getElementById('editQid').value = '';
+        document.getElementById('question').value = '';
+        document.getElementById('sort').value = '0';
+        document.getElementById('status').value = '1';
+        
+        // 清空Quill编辑器
+        if (quill) {
+            quill.root.innerHTML = '';
+        }
+        
+        const modal = document.getElementById('faqModal');
+        console.log('模态框元素:', modal);
+        if (modal) {
+            modal.classList.add('active');
+            console.log('已添加active类');
+        } else {
+            console.error('找不到faqModal元素');
+        }
+    }
+    
+    // 编辑问题
+    function editFaq(qid) {
+        currentEditId = qid;
+        
+        // 获取问题详情
+        fetch(`/api/question/list`)
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 0) {
+                    const question = result.data.find(q => q.qid === qid);
+                    if (question) {
+                        document.getElementById('modalTitle').textContent = '编辑常见问题';
+                        document.getElementById('editQid').value = question.qid;
+                        document.getElementById('question').value = question.question;
+                        document.getElementById('sort').value = question.sort || 0;
+                        document.getElementById('status').value = question.status;
+                        quill.root.innerHTML = question.answer || '';
+                        
+                        document.getElementById('faqModal').classList.add('active');
+                    }
+                }
+            });
+    }
+    
+    // 删除问题
+    function deleteFaq(qid) {
+        modal.confirm('确定要删除这个常见问题吗？', () => {
+            fetch(`/api/question/delete/${qid}`, {
+                method: 'DELETE'
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.code === 0) {
+                    showSuccess('删除成功');
+                    loadQuestions();
+                } else {
+                    showError('删除失败：' + result.msg);
+                }
+            })
+            .catch(err => {
+                showError('网络错误：' + err.message);
+            });
+        });
+    }
+    
+    // 保存问题
+    function saveFaq() {
+        const question = document.getElementById('question').value.trim();
+        const sort = parseInt(document.getElementById('sort').value) || 0;
+        const status = parseInt(document.getElementById('status').value);
+        const answerHtml = quill.root.innerHTML;
+        const answerText = quill.getText().trim();
+        
+        // 验证
+        if (!question) {
+            showError('请输入常见问题');
+            return;
+        }
+        
+        if (!answerText) {
+            showError('请输入问题答案');
+            return;
+        }
+        
+        const data = {
+            question: question,
+            answer: answerHtml,
+            answer_text: answerText,
+            sort: sort,
+            status: status
+        };
+        
+        const isEdit = currentEditId !== null;
+        const url = isEdit ? `/api/question/update/${currentEditId}` : '/api/question/create';
+        const method = isEdit ? 'PUT' : 'POST';
+        
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.code === 0) {
+                showSuccess(isEdit ? '更新成功' : '添加成功');
+                closeModal();
+                loadQuestions();
+            } else {
+                showError((isEdit ? '更新' : '添加') + '失败：' + result.msg);
+            }
+        })
+        .catch(err => {
+            showError('网络错误：' + err.message);
+        });
+    }
+    
+    // 关闭模态框
+    function closeModal() {
+        document.getElementById('faqModal').classList.remove('active');
+    }
+    
+    // 工具函数
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function stripHtml(html) {
+        if (!html) return '';
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        return div.textContent.substring(0, 100) + '...';
+    }
+    
+    function showSuccess(msg) {
+        modal.success(msg);
+    }
+    
+    function showError(msg) {
+        modal.error(msg);
+    }
+</script>
+{% endblock %}
+

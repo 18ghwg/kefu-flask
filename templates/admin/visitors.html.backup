@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>访客管理 - 客服系统</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin/visitors.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1><i class="fas fa-users"></i> 访客管理</h1>
+            <div class="header-actions">
+                <button class="btn btn-success" onclick="exportVisitors()">
+                    <i class="fas fa-file-export"></i> 导出数据
+                </button>
+                <button class="btn btn-primary" onclick="refreshData()">
+                    <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats">
+            <div class="stat-card">
+                <h3>总访客数</h3>
+                <div class="value" id="totalVisitors">0</div>
+            </div>
+            <div class="stat-card online">
+                <h3>在线访客</h3>
+                <div class="value" id="onlineVisitors">0</div>
+            </div>
+            <div class="stat-card new">
+                <h3>新访客</h3>
+                <div class="value" id="newVisitors">0</div>
+            </div>
+            <div class="stat-card returning">
+                <h3>回访客</h3>
+                <div class="value" id="returningVisitors">0</div>
+            </div>
+            <div class="stat-card blacklist">
+                <h3>黑名单</h3>
+                <div class="value" id="blacklistCount">0</div>
+            </div>
+        </div>
+
+        <!-- 过滤器 -->
+        <div class="filters">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>搜索</label>
+                    <input type="text" id="keyword" placeholder="搜索姓名、电话、IP...">
+                </div>
+                <div class="filter-group">
+                    <label>状态</label>
+                    <select id="state">
+                        <option value="">全部</option>
+                        <option value="online">在线</option>
+                        <option value="offline">离线</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>分组</label>
+                    <select id="groupId">
+                        <option value="">全部分组</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>黑名单</label>
+                    <select id="isBlacklist">
+                        <option value="">全部</option>
+                        <option value="0">正常</option>
+                        <option value="1">黑名单</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="display: flex; align-items: flex-end;">
+                    <button class="btn btn-primary" onclick="searchVisitors()" style="width: 100%;">
+                        <i class="fas fa-search"></i> 搜索
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 访客表格 -->
+        <div class="visitor-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>访客信息</th>
+                        <th>联系方式</th>
+                        <th>来源信息</th>
+                        <th>设备/浏览器</th>
+                        <th>访问次数</th>
+                        <th>状态</th>
+                        <th>标签</th>
+                        <th>最后访问</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="visitorList">
+                    <!-- 动态加载 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <button onclick="changePage(-1)" id="prevBtn">
+                <i class="fas fa-chevron-left"></i> 上一页
+            </button>
+            <span id="pageInfo">第 1 页</span>
+            <button onclick="changePage(1)" id="nextBtn">
+                下一页 <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 编辑访客模态框 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>编辑访客信息</h3>
+                <button class="modal-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editForm" onsubmit="saveVisitor(event)">
+                <input type="hidden" id="editVisitorId">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>访客名称</label>
+                        <input type="text" id="editVisitorName" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>真实姓名</label>
+                        <input type="text" id="editRealName" placeholder="请输入真实姓名">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>联系电话</label>
+                        <input type="text" id="editTel" placeholder="请输入联系电话">
+                    </div>
+                    <div class="form-group">
+                        <label>其他联系方式</label>
+                        <input type="text" id="editConnect" placeholder="QQ、微信等">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>标签（逗号分隔）</label>
+                    <input type="text" id="editTags" placeholder="例如：VIP,重要客户,潜在客户">
+                    <small>多个标签请用逗号分隔</small>
+                </div>
+
+                <div class="form-group">
+                    <label>分组</label>
+                    <select id="editGroupId">
+                        <option value="">无分组</option>
+                        <!-- 动态加载 -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>备注</label>
+                    <textarea id="editComment" rows="3" placeholder="请输入备注信息"></textarea>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeEditModal()">取消</button>
+                    <button type="submit" class="btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 标签管理模态框 -->
+    <div id="tagModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>管理标签</h3>
+                <button class="modal-close" onclick="closeTagModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="tagVisitorId">
+                
+                <div class="form-group">
+                    <label>添加新标签</label>
+                    <div class="tag-input-group">
+                        <input type="text" id="newTag" placeholder="输入标签名称">
+                        <button type="button" class="btn-primary" onclick="addTag()">
+                            <i class="fas fa-plus"></i> 添加
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>当前标签</label>
+                    <div id="currentTags" class="tags-container">
+                        <!-- 动态加载 -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeTagModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/admin/visitors.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,675 @@
+{% extends "admin/base.html" %}
+
+{% block title %}系统设置 - 客服系统{% endblock %}
+
+{% block extra_css %}
+<!-- Quill富文本编辑器 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+
+<style>
+    .settings-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .settings-section {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .section-description {
+        font-size: 14px;
+        color: #6b7280;
+        margin-bottom: 25px;
+    }
+
+    .setting-item {
+        padding: 20px 0;
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .setting-item:last-child {
+        border-bottom: none;
+    }
+
+    .setting-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .setting-label {
+        font-size: 15px;
+        font-weight: 500;
+        color: #374151;
+    }
+
+    .setting-help {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 10px;
+    }
+
+    .setting-control {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .input-field {
+        flex: 1;
+        padding: 10px 15px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+
+    .input-field:focus {
+        outline: none;
+        border-color: var(--primary-color);
+    }
+
+    .select-field {
+        flex: 1;
+        padding: 10px 15px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .toggle-switch {
+        position: relative;
+        width: 50px;
+        height: 28px;
+        background: #d1d5db;
+        border-radius: 14px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+
+    .toggle-switch.active {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+    }
+
+    .toggle-switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 22px;
+        height: 22px;
+        background: white;
+        border-radius: 50%;
+        transition: left 0.3s;
+    }
+
+    .toggle-switch.active::after {
+        left: 25px;
+    }
+
+    .save-btn {
+        padding: 12px 32px;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 20px;
+    }
+
+    .save-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .reset-btn {
+        padding: 12px 32px;
+        background: white;
+        color: #6b7280;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-left: 10px;
+    }
+
+    .reset-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .actions {
+        display: flex;
+        justify-content: center;
+        margin-top: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>⚙️ 系统设置</h1>
+    <p>配置系统参数和功能开关</p>
+</div>
+
+<div class="settings-container">
+    <!-- 基本设置 -->
+    <div class="settings-section">
+        <div class="section-title">
+            <span>🏢</span>
+            <span>基本设置</span>
+        </div>
+        <div class="section-description">配置商户基本信息</div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">商户名称</div>
+            </div>
+            <div class="setting-help">显示在客服系统中的商户名称</div>
+            <div class="setting-control">
+                <input type="text" class="input-field" id="businessName" placeholder="请输入商户名称">
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">版权信息</div>
+            </div>
+            <div class="setting-help">显示在页面底部的版权信息</div>
+            <div class="setting-control">
+                <input type="text" class="input-field" id="copyright" placeholder="© 2025 Your Company">
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">系统语言</div>
+            </div>
+            <div class="setting-help">选择系统使用的语言</div>
+            <div class="setting-control">
+                <select class="select-field" id="lang">
+                    <option value="cn">简体中文</option>
+                    <option value="en">English</option>
+                    <option value="tw">繁體中文</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分配规则 -->
+    <div class="settings-section">
+        <div class="section-title">
+            <span>🎯</span>
+            <span>分配规则</span>
+        </div>
+        <div class="section-description">配置访客分配给客服的规则</div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">分配方式</div>
+            </div>
+            <div class="setting-help">选择访客如何分配给客服</div>
+            <div class="setting-control">
+                <select class="select-field" id="distributionRule">
+                    <option value="auto">自动分配（智能负载均衡）</option>
+                    <option value="claim">手动认领（客服主动接入）</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- 功能开关 -->
+    <div class="settings-section">
+        <div class="section-title">
+            <span>🎛️</span>
+            <span>功能开关</span>
+        </div>
+        <div class="section-description">启用或禁用特定功能</div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">语音提示</div>
+                <div class="toggle-switch" id="voiceState" onclick="toggleSwitch('voiceState')"></div>
+            </div>
+            <div class="setting-help">新消息时播放提示音</div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">视频通话</div>
+                <div class="toggle-switch" id="videoState" onclick="toggleSwitch('videoState')"></div>
+            </div>
+            <div class="setting-help">启用视频通话功能</div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">音频通话</div>
+                <div class="toggle-switch" id="audioState" onclick="toggleSwitch('audioState')"></div>
+            </div>
+            <div class="setting-help">启用音频通话功能</div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">模板消息</div>
+                <div class="toggle-switch" id="templateState" onclick="toggleSwitch('templateState')"></div>
+            </div>
+            <div class="setting-help">启用微信模板消息推送</div>
+        </div>
+    </div>
+
+    <!-- 通知设置 -->
+    <div class="settings-section">
+        <div class="section-title">
+            <span>🔔</span>
+            <span>通知设置</span>
+        </div>
+        <div class="section-description">配置系统通知相关设置</div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">提示音地址</div>
+            </div>
+            <div class="setting-help">新消息提示音的URL地址</div>
+            <div class="setting-control">
+                <input type="text" class="input-field" id="voiceAddress" placeholder="/static/voice/default.mp3">
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">推送URL</div>
+            </div>
+            <div class="setting-help">第三方推送服务的Webhook地址</div>
+            <div class="setting-control">
+                <input type="text" class="input-field" id="pushUrl" placeholder="https://api.example.com/webhook">
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件上传设置 -->
+    <div class="settings-section">
+        <div class="section-title">
+            <span>📁</span>
+            <span>文件上传设置</span>
+        </div>
+        <div class="section-description">配置文件上传的限制和安全选项</div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">最大文件大小</div>
+            </div>
+            <div class="setting-help">单个文件的最大上传大小（MB）</div>
+            <div class="setting-control">
+                <input type="number" class="input-field" id="uploadMaxSize" placeholder="10" min="1" max="100">
+                <span style="margin-left: 10px;">MB</span>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">最大图片大小</div>
+            </div>
+            <div class="setting-help">单个图片的最大上传大小（MB）</div>
+            <div class="setting-control">
+                <input type="number" class="input-field" id="uploadImageMaxSize" placeholder="5" min="1" max="50">
+                <span style="margin-left: 10px;">MB</span>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">允许的文件类型</div>
+            </div>
+            <div class="setting-help">选择允许上传的文件类型（多选）</div>
+            <div class="setting-control" style="flex-direction: column; align-items: flex-start;">
+                <label style="margin: 5px 0;">
+                    <input type="checkbox" class="file-type-checkbox" value="image"> 图片（png, jpg, jpeg, gif等）
+                </label>
+                <label style="margin: 5px 0;">
+                    <input type="checkbox" class="file-type-checkbox" value="document"> 文档（pdf, doc, docx, xls, xlsx, ppt, pptx, txt）
+                </label>
+                <label style="margin: 5px 0;">
+                    <input type="checkbox" class="file-type-checkbox" value="archive"> 压缩包（zip, rar, 7z, tar, gz）
+                </label>
+                <label style="margin: 5px 0;">
+                    <input type="checkbox" class="file-type-checkbox" value="video"> 视频（mp4, avi, mov, wmv等）
+                </label>
+                <label style="margin: 5px 0;">
+                    <input type="checkbox" class="file-type-checkbox" value="audio"> 音频（mp3, wav, ogg, aac等）
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- 聊天设置 -->
+    <div class="settings-section">
+        <div class="section-title">
+            <span>💬</span>
+            <span>聊天设置</span>
+        </div>
+        <div class="section-description">配置聊天相关的文本和超时时间</div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">🤖 自动问候语</div>
+            </div>
+            <div class="setting-help">访客进入聊天时机器人自动发送的问候消息（支持富文本）</div>
+            <div class="setting-control" style="flex-direction: column; align-items: stretch;">
+                <div id="greetingEditor" style="height: 200px; border: 1px solid #d1d5db; border-radius: 8px;"></div>
+                <textarea id="greetingMessage" style="display: none;"></textarea>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">👥 默认最大接待数</div>
+            </div>
+            <div class="setting-help">新建客服账号时的默认最大同时接待访客数量（管理员不受此限制）</div>
+            <div class="setting-control">
+                <input type="number" class="input-field" id="defaultMaxConcurrentChats" placeholder="5" min="1" max="100" style="width: 150px;">
+                <span style="margin-left: 10px; color: #6b7280;">人/客服</span>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">🤖 机器人回复模式</div>
+            </div>
+            <div class="setting-help">控制机器人智能关键词自动回复的触发条件</div>
+            <div class="setting-control">
+                <select id="robotReplyMode" class="input-field" style="width: auto; min-width: 300px;">
+                    <option value="offline_only">仅在客服离线时回复（推荐）</option>
+                    <option value="always">始终自动回复</option>
+                </select>
+                <div style="margin-top: 8px; padding: 12px; background: #f3f4f6; border-radius: 6px; font-size: 13px; color: #6b7280;">
+                    <strong>说明：</strong><br>
+                    • <strong>仅离线时回复</strong>：客服在线时不干扰，由人工处理；客服离线时自动回复，保证服务连续性<br>
+                    • <strong>始终回复</strong>：无论客服在线或离线都回复，适合快速解答常见问题的场景
+                </div>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">欢迎语</div>
+            </div>
+            <div class="setting-help">访客进入聊天时显示的欢迎消息</div>
+            <div class="setting-control">
+                <input type="text" class="input-field" id="chatWelcomeText" placeholder="您好，有什么可以帮助您的？">
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">离线提示</div>
+            </div>
+            <div class="setting-help">当前没有客服在线时的提示消息</div>
+            <div class="setting-control">
+                <input type="text" class="input-field" id="chatOfflineText" placeholder="当前客服不在线，请留言">
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">排队提示</div>
+            </div>
+            <div class="setting-help">访客需要排队等待时的提示消息</div>
+            <div class="setting-control">
+                <input type="text" class="input-field" id="chatQueueText" placeholder="当前排队人数较多，请稍候">
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">会话超时时间</div>
+            </div>
+            <div class="setting-help">访客无操作多久后会话超时（分钟）</div>
+            <div class="setting-control">
+                <input type="number" class="input-field" id="sessionTimeout" placeholder="30" min="1" max="120">
+                <span style="margin-left: 10px;">分钟</span>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-header">
+                <div class="setting-label">自动关闭超时</div>
+            </div>
+            <div class="setting-help">会话结束后多久自动关闭（分钟）</div>
+            <div class="setting-control">
+                <input type="number" class="input-field" id="autoCloseTimeout" placeholder="5" min="1" max="60">
+                <span style="margin-left: 10px;">分钟</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 保存按钮 -->
+    <div class="actions">
+        <button class="save-btn" onclick="saveSettings()">
+            <span>💾</span>
+            <span>保存设置</span>
+        </button>
+        <button class="reset-btn" onclick="loadSettings()">
+            <span>🔄</span>
+            <span>重置</span>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Quill富文本编辑器 JS -->
+<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+
+<script>
+    // 初始化Quill编辑器
+    let greetingQuill;
+    
+    // 页面加载时获取当前设置
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化富文本编辑器
+        greetingQuill = new Quill('#greetingEditor', {
+            theme: 'snow',
+            placeholder: '输入访客进入时的自动问候语...',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'align': [] }],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+        
+        loadSettings();
+    });
+
+    // 加载设置
+    function loadSettings() {
+        // 加载商户基本信息
+        fetch('/api/admin/business-info')
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 0) {
+                    const business = data.data;
+                    
+                    // 基本设置
+                    document.getElementById('businessName').value = business.business_name || '';
+                    document.getElementById('copyright').value = business.copyright || '';
+                    document.getElementById('lang').value = business.lang || 'cn';
+                    
+                    // 分配规则
+                    document.getElementById('distributionRule').value = business.distribution_rule || 'auto';
+                    
+                    // 功能开关
+                    setToggleState('voiceState', business.voice_state === 'open');
+                    setToggleState('videoState', business.video_state === 'open');
+                    setToggleState('audioState', business.audio_state === 'open');
+                    setToggleState('templateState', business.template_state === 'open');
+                    
+                    // 通知设置
+                    document.getElementById('voiceAddress').value = business.voice_address || '';
+                    document.getElementById('pushUrl').value = business.push_url || '';
+                }
+            })
+            .catch(error => {
+                console.error('加载商户信息失败:', error);
+            });
+        
+        // 加载系统设置
+        fetch('/api/admin/system-settings')
+            .then(response => {
+                if (response.status === 403) {
+                    // 权限不足
+                    throw new Error('权限不足，无法访问系统设置');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.code === 0) {
+                    const settings = data.data;
+                    
+                    // 文件上传设置
+                    document.getElementById('uploadMaxSize').value = (settings.upload_max_size / 1048576).toFixed(0);  // 字节转MB
+                    document.getElementById('uploadImageMaxSize').value = (settings.upload_image_max_size / 1048576).toFixed(0);
+                    
+                    // 允许的文件类型
+                    const allowedTypes = settings.upload_allowed_types ? settings.upload_allowed_types.split(',') : [];
+                    document.querySelectorAll('.file-type-checkbox').forEach(checkbox => {
+                        checkbox.checked = allowedTypes.includes(checkbox.value);
+                    });
+                    
+                    // 聊天设置
+                    if (settings.greeting_message) {
+                        greetingQuill.root.innerHTML = settings.greeting_message;
+                    }
+                    document.getElementById('defaultMaxConcurrentChats').value = settings.default_max_concurrent_chats || 5;
+                    document.getElementById('robotReplyMode').value = settings.robot_reply_mode || 'offline_only';
+                    document.getElementById('chatWelcomeText').value = settings.chat_welcome_text || '';
+                    document.getElementById('chatOfflineText').value = settings.chat_offline_text || '';
+                    document.getElementById('chatQueueText').value = settings.chat_queue_text || '';
+                    document.getElementById('sessionTimeout').value = (settings.session_timeout / 60).toFixed(0);  // 秒转分钟
+                    document.getElementById('autoCloseTimeout').value = (settings.auto_close_timeout / 60).toFixed(0);
+                }
+            })
+            .catch(error => {
+                console.error('加载系统设置失败:', error);
+            });
+    }
+
+    // 保存设置
+    function saveSettings() {
+        // 保存商户基本信息
+        const businessSettings = {
+            business_name: document.getElementById('businessName').value,
+            copyright: document.getElementById('copyright').value,
+            lang: document.getElementById('lang').value,
+            distribution_rule: document.getElementById('distributionRule').value,
+            voice_state: getToggleState('voiceState') ? 'open' : 'close',
+            video_state: getToggleState('videoState') ? 'open' : 'close',
+            audio_state: getToggleState('audioState') ? 'open' : 'close',
+            template_state: getToggleState('templateState') ? 'open' : 'close',
+            voice_address: document.getElementById('voiceAddress').value,
+            push_url: document.getElementById('pushUrl').value
+        };
+
+        // 保存系统设置
+        const allowedTypes = Array.from(document.querySelectorAll('.file-type-checkbox:checked'))
+            .map(cb => cb.value)
+            .join(',');
+        
+        const systemSettings = {
+            upload_max_size: parseInt(document.getElementById('uploadMaxSize').value) * 1048576,  // MB转字节
+            upload_image_max_size: parseInt(document.getElementById('uploadImageMaxSize').value) * 1048576,
+            upload_allowed_types: allowedTypes,
+            default_max_concurrent_chats: parseInt(document.getElementById('defaultMaxConcurrentChats').value) || 5,
+            greeting_message: greetingQuill.root.innerHTML,  // 获取富文本内容
+            robot_reply_mode: document.getElementById('robotReplyMode').value,  // 机器人回复模式
+            chat_welcome_text: document.getElementById('chatWelcomeText').value,
+            chat_offline_text: document.getElementById('chatOfflineText').value,
+            chat_queue_text: document.getElementById('chatQueueText').value,
+            session_timeout: parseInt(document.getElementById('sessionTimeout').value) * 60,  // 分钟转秒
+            auto_close_timeout: parseInt(document.getElementById('autoCloseTimeout').value) * 60
+        };
+
+        // 并行保存两个设置
+        Promise.all([
+            fetch('/api/admin/business-info', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(businessSettings)
+            }),
+            fetch('/api/admin/system-settings', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(systemSettings)
+            })
+        ])
+        .then(responses => Promise.all(responses.map(r => r.json())))
+        .then(results => {
+            const [businessResult, systemResult] = results;
+            if (businessResult.code === 0 && systemResult.code === 0) {
+                showSuccess();
+            } else {
+                modal.error('保存失败: ' + (businessResult.msg || systemResult.msg));
+            }
+        })
+        .catch(error => {
+            console.error('保存设置失败:', error);
+            modal.error('保存失败，请重试');
+        });
+    }
+
+    // 切换开关
+    function toggleSwitch(id) {
+        const element = document.getElementById(id);
+        element.classList.toggle('active');
+    }
+
+    // 设置开关状态
+    function setToggleState(id, isActive) {
+        const element = document.getElementById(id);
+        if (isActive) {
+            element.classList.add('active');
+        } else {
+            element.classList.remove('active');
+        }
+    }
+
+    // 获取开关状态
+    function getToggleState(id) {
+        return document.getElementById(id).classList.contains('active');
+    }
+
+    // 显示成功消息
+    function showSuccess() {
+        modal.success('设置已保存成功！');
+    }
+</script>
+{% endblock %}
+

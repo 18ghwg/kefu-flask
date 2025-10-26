@@ -1,0 +1,111 @@
+{% extends "admin/base.html" %}
+
+{% block title %}操作日志{% endblock %}
+
+{% block nav_operation_logs %}active{% endblock %}
+
+{% block breadcrumb %}
+<span><i class="fas fa-file-alt"></i> <i class="fas fa-chevron-right"></i> 操作日志</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/operation_logs.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="header">
+        <h1><i class="fas fa-file-alt"></i> 操作日志</h1>
+    </div>
+    
+    <div class="search-box">
+        <input type="text" id="operatorNameInput" placeholder="操作人名称">
+        <select id="moduleSelect">
+            <option value="">所有模块</option>
+            <option value="auth">认证</option>
+            <option value="visitor">访客</option>
+            <option value="service">客服</option>
+            <option value="robot">机器人</option>
+            <option value="question">常见问题</option>
+            <option value="comment">评价</option>
+            <option value="system">系统设置</option>
+            <option value="upload">文件上传</option>
+        </select>
+        <select id="actionSelect">
+            <option value="">所有动作</option>
+            <option value="login">登录</option>
+            <option value="logout">登出</option>
+            <option value="create">创建</option>
+            <option value="update">更新</option>
+            <option value="delete">删除</option>
+            <option value="view">查看</option>
+            <option value="import">导入</option>
+            <option value="toggle_status">切换状态</option>
+        </select>
+        <input type="date" id="startDateInput" title="开始日期">
+        <input type="date" id="endDateInput" title="结束日期">
+        <button class="btn-primary" onclick="searchLogs()">搜索</button>
+        <button class="btn-secondary" onclick="resetSearch()">重置</button>
+    </div>
+    
+    <div class="log-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>操作人</th>
+                    <th>类型</th>
+                    <th>模块</th>
+                    <th>动作</th>
+                    <th>描述</th>
+                    <th>IP</th>
+                    <th>结果</th>
+                    <th>操作时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="logList">
+                <!-- Logs will be loaded here -->
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="pagination">
+        <button id="prevBtn" onclick="changePage(-1)">上一页</button>
+        <span id="pageInfo">第 1 / 1 页</span>
+        <button id="nextBtn" onclick="changePage(1)">下一页</button>
+    </div>
+</div>
+
+<!-- Log Detail Modal -->
+<div id="logDetailModal" class="modal">
+    <div class="modal-content">
+        <span class="modal-close-btn" onclick="closeDetailModal()">&times;</span>
+        <h2>操作日志详情</h2>
+        <div class="modal-body">
+            <p><strong>ID:</strong> <span id="detailId"></span></p>
+            <p><strong>商户ID:</strong> <span id="detailBusinessId"></span></p>
+            <p><strong>操作人:</strong> <span id="detailOperatorName"></span> (<span id="detailOperatorType"></span>)</p>
+            <p><strong>操作人ID:</strong> <span id="detailOperatorId"></span></p>
+            <p><strong>模块:</strong> <span id="detailModule"></span></p>
+            <p><strong>动作:</strong> <span id="detailAction"></span></p>
+            <p><strong>描述:</strong> <span id="detailDescription"></span></p>
+            <p><strong>请求方法:</strong> <span id="detailMethod"></span></p>
+            <p><strong>请求路径:</strong> <span id="detailPath"></span></p>
+            <p><strong>操作IP:</strong> <span id="detailIp"></span></p>
+            <p><strong>User-Agent:</strong> <span id="detailUserAgent"></span></p>
+            <p><strong>目标ID:</strong> <span id="detailTargetId"></span></p>
+            <p><strong>目标类型:</strong> <span id="detailTargetType"></span></p>
+            <p><strong>请求参数:</strong> <pre id="detailParams"></pre></p>
+            <p><strong>操作结果:</strong> <span id="detailResult" class="log-result"></span></p>
+            <p><strong>错误信息:</strong> <pre id="detailErrorMsg"></pre></p>
+            <p><strong>操作时间:</strong> <span id="detailCreatedAt"></span></p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/admin/operation_logs.js') }}"></script>
+{% endblock %}

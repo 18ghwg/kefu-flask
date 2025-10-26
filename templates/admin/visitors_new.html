@@ -1,0 +1,132 @@
+{% extends "admin/base.html" %}
+
+{% block title %}访客管理{% endblock %}
+
+{% block nav_visitors %}active{% endblock %}
+
+{% block breadcrumb %}
+<span><i class="fas fa-chevron-right"></i> 访客管理</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/visitors.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <!-- 统计卡片 -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="totalVisitors">0</div>
+                <div class="stat-label">总访客数</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <i class="fas fa-user-check"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="onlineVisitors">0</div>
+                <div class="stat-label">在线访客</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="waitingVisitors">0</div>
+                <div class="stat-label">排队中</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                <i class="fas fa-comment-dots"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value" id="chattingVisitors">0</div>
+                <div class="stat-label">对话中</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+        <div class="filter-group">
+            <label><i class="fas fa-filter"></i> 状态</label>
+            <select id="stateFilter" class="form-control" onchange="searchVisitors()">
+                <option value="">全部状态</option>
+                <option value="online">在线</option>
+                <option value="offline">离线</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label><i class="fas fa-users"></i> 分组</label>
+            <select id="groupFilter" class="form-control" onchange="searchVisitors()">
+                <option value="">全部分组</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label><i class="fas fa-ban"></i> 黑名单</label>
+            <select id="blacklistFilter" class="form-control" onchange="searchVisitors()">
+                <option value="">全部</option>
+                <option value="1">仅黑名单</option>
+                <option value="0">非黑名单</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label><i class="fas fa-search"></i> 搜索</label>
+            <input type="text" id="searchKeyword" class="form-control" placeholder="搜索访客名称、ID">
+        </div>
+
+        <div class="filter-actions">
+            <button class="btn-primary" onclick="searchVisitors()">
+                <i class="fas fa-search"></i> 搜索
+            </button>
+            <button class="btn-secondary" onclick="resetFilters()">
+                <i class="fas fa-redo"></i> 重置
+            </button>
+        </div>
+    </div>
+
+    <!-- 访客列表 -->
+    <div class="visitors-section">
+        <div class="section-header">
+            <h3><i class="fas fa-list"></i> 访客列表</h3>
+            <button class="btn-secondary" onclick="refreshData()">
+                <i class="fas fa-sync-alt"></i> 刷新
+            </button>
+        </div>
+
+        <div class="visitors-list" id="visitorsList">
+            <!-- 动态加载 -->
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination">
+            <button class="page-btn" id="prevBtn" onclick="changePage(-1)" disabled>
+                <i class="fas fa-chevron-left"></i> 上一页
+            </button>
+            <span class="page-info" id="pageInfo">第 1 / 1 页</span>
+            <button class="page-btn" id="nextBtn" onclick="changePage(1)" disabled>
+                下一页 <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/admin/visitors.js') }}"></script>
+{% endblock %}
+

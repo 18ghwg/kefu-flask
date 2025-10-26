@@ -1,0 +1,459 @@
+{% extends "admin/base.html" %}
+
+{% block title %}问候语设置 - 客服系统{% endblock %}
+
+{% block extra_css %}
+<!-- Quill富文本编辑器 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+
+<style>
+    .greeting-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .greeting-card {
+        background: white;
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 10px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #f3f4f6;
+    }
+
+    .card-icon {
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 24px;
+    }
+
+    .card-title {
+        flex: 1;
+    }
+
+    .card-title h2 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .card-title p {
+        margin: 5px 0 0 0;
+        font-size: 14px;
+        color: #6b7280;
+    }
+
+    .editor-container {
+        margin-top: 30px;
+    }
+
+    .editor-label {
+        font-size: 15px;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 10px;
+        display: block;
+    }
+
+    .editor-help {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 15px;
+        display: block;
+    }
+
+    #greetingEditor {
+        height: 400px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+    }
+
+    .actions {
+        display: flex;
+        gap: 15px;
+        margin-top: 30px;
+        justify-content: flex-start;
+    }
+
+    .save-btn {
+        padding: 12px 32px;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .save-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .preview-btn {
+        padding: 12px 32px;
+        background: white;
+        color: var(--primary-color);
+        border: 2px solid var(--primary-color);
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .preview-btn:hover {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .reset-btn {
+        padding: 12px 32px;
+        background: white;
+        color: #6b7280;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .reset-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .success-alert {
+        background: #d1fae5;
+        color: #065f46;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    .success-alert.show {
+        display: flex;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .preview-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        backdrop-filter: blur(4px);
+    }
+
+    .preview-modal.show {
+        display: flex;
+    }
+
+    .preview-content {
+        background: white;
+        border-radius: 12px;
+        padding: 30px;
+        max-width: 600px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        position: relative;
+    }
+
+    .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f3f4f6;
+    }
+
+    .preview-header h3 {
+        margin: 0;
+        font-size: 20px;
+        color: #1f2937;
+    }
+
+    .close-preview {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: #6b7280;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+    }
+
+    .close-preview:hover {
+        background: #f3f4f6;
+        color: #1f2937;
+    }
+
+    .preview-body {
+        padding: 20px;
+        background: #f9fafb;
+        border-radius: 8px;
+        min-height: 200px;
+    }
+
+    /* Quill编辑器工具栏优化 */
+    .ql-toolbar.ql-snow {
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        background: #f9fafb;
+    }
+
+    .ql-container.ql-snow {
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>💬 问候语设置</h1>
+    <p>配置访客进入聊天时机器人自动发送的问候消息</p>
+</div>
+
+<div class="greeting-container">
+    <div class="success-alert" id="successAlert">
+        <i class="fas fa-check-circle" style="font-size: 20px;"></i>
+        <span>问候语已保存成功！</span>
+    </div>
+
+    <div class="greeting-card">
+        <div class="card-header">
+            <div class="card-icon">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="card-title">
+                <h2>自动问候语</h2>
+                <p>访客进入聊天界面时，机器人会自动发送此问候消息</p>
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <label class="editor-label">
+                <i class="fas fa-edit"></i> 问候语内容
+            </label>
+            <span class="editor-help">
+                支持富文本格式：粗体、斜体、下划线、颜色、对齐、链接等。问候语将在访客连接成功1秒后自动显示。
+            </span>
+            
+            <div id="greetingEditor"></div>
+        </div>
+
+        <div class="actions">
+            <button class="save-btn" onclick="saveGreeting()">
+                <i class="fas fa-save"></i>
+                <span>保存问候语</span>
+            </button>
+            <button class="preview-btn" onclick="previewGreeting()">
+                <i class="fas fa-eye"></i>
+                <span>预览效果</span>
+            </button>
+            <button class="reset-btn" onclick="loadGreeting()">
+                <i class="fas fa-undo"></i>
+                <span>重置</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 预览模态框 -->
+<div class="preview-modal" id="previewModal" onclick="closePreview()">
+    <div class="preview-content" onclick="event.stopPropagation()">
+        <div class="preview-header">
+            <h3><i class="fas fa-eye"></i> 问候语预览</h3>
+            <button class="close-preview" onclick="closePreview()">×</button>
+        </div>
+        <div class="preview-body" id="previewBody">
+            <!-- 动态加载 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Quill富文本编辑器 JS -->
+<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+
+<script>
+    let greetingQuill;
+    
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化Quill富文本编辑器
+        greetingQuill = new Quill('#greetingEditor', {
+            theme: 'snow',
+            placeholder: '输入访客进入时的自动问候语...',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'align': [] }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+        
+        // 加载问候语
+        loadGreeting();
+    });
+
+    // 加载问候语
+    async function loadGreeting() {
+        try {
+            const response = await fetch('/api/admin/system-settings');
+            
+            if (response.status === 403) {
+                modal.error('权限不足！此页面仅限管理员访问。');
+                return;
+            }
+            
+            const result = await response.json();
+            
+            if (result.code === 0 && result.data.greeting_message) {
+                greetingQuill.root.innerHTML = result.data.greeting_message;
+            } else {
+                // 设置默认问候语
+                greetingQuill.root.innerHTML = `<p><strong>欢迎您光临本店！</strong></p>
+<p><br></p>
+<p>尊敬的小主，欢迎光临本店！</p>
+<p><strong>【小新教育】</strong>专业团队时刻准备为您提供更优服务！ 快速提分备考，就选小新教育！</p>
+<p><br></p>
+<p>考前解析请点击左下角"人工咨询"说明（地区+时间）后自助购买</p>
+<p><br></p>
+<p style="color: #e74c3c;">祝您2025"步步高升，金榜题名"</p>`;
+            }
+        } catch (error) {
+            console.error('加载问候语失败:', error);
+            modal.error('加载失败：' + error.message);
+        }
+    }
+
+    // 保存问候语
+    async function saveGreeting() {
+        try {
+            const greetingMessage = greetingQuill.root.innerHTML;
+            
+            // 验证内容不为空
+            if (!greetingMessage.trim() || greetingMessage === '<p><br></p>') {
+                modal.warning('请输入问候语内容');
+                return;
+            }
+            
+            const response = await fetch('/api/admin/system-settings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    greeting_message: greetingMessage
+                })
+            });
+            
+            if (response.status === 403) {
+                modal.error('权限不足！无法保存设置。');
+                return;
+            }
+            
+            const result = await response.json();
+            
+            if (result.code === 0) {
+                showSuccess();
+                modal.success('问候语保存成功！');
+            } else {
+                modal.error('保存失败：' + result.msg);
+            }
+        } catch (error) {
+            console.error('保存问候语失败:', error);
+            modal.error('保存失败：' + error.message);
+        }
+    }
+
+    // 预览问候语
+    function previewGreeting() {
+        const content = greetingQuill.root.innerHTML;
+        document.getElementById('previewBody').innerHTML = content;
+        document.getElementById('previewModal').classList.add('show');
+    }
+
+    // 关闭预览
+    function closePreview() {
+        document.getElementById('previewModal').classList.remove('show');
+    }
+
+    // 显示成功提示
+    function showSuccess() {
+        const alert = document.getElementById('successAlert');
+        alert.classList.add('show');
+        setTimeout(() => {
+            alert.classList.remove('show');
+        }, 3000);
+    }
+
+    // ESC键关闭预览
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closePreview();
+        }
+    });
+</script>
+{% endblock %}
+

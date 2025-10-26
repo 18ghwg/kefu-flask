@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客服评价排行榜 - 管理后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <style>
+        .ranking-container {
+            padding: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .page-header h2 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-item label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #6b7280;
+        }
+
+        .filter-item select,
+        .filter-item button {
+            padding: 10px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-item button {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+            color: white;
+            border: none;
+            font-weight: 500;
+        }
+
+        .filter-item button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .podium {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+            align-items: flex-end;
+        }
+
+        .podium-item {
+            background: white;
+            border-radius: 16px;
+            padding: 30px 20px;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .podium-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+
+        .podium-item.rank-1 {
+            order: 2;
+            padding-top: 50px;
+        }
+
+        .podium-item.rank-1::before {
+            content: '';
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+        }
+
+        .podium-item.rank-1::after {
+            content: '👑';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            z-index: 1;
+        }
+
+        .podium-item.rank-2 {
+            order: 1;
+        }
+
+        .podium-item.rank-3 {
+            order: 3;
+        }
+
+        .rank-badge {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 15px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 800;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .rank-1 .rank-badge {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            font-size: 36px;
+        }
+
+        .rank-2 .rank-badge {
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+        }
+
+        .rank-3 .rank-badge {
+            background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+        }
+
+        .service-avatar {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .service-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .score-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 15px 0;
+        }
+
+        .score-number {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .star-rating {
+            display: inline-flex;
+            gap: 2px;
+            color: #fbbf24;
+            font-size: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .other-rankings {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .section-header {
+            padding: 20px 25px;
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .ranking-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .ranking-list-item {
+            display: flex;
+            align-items: center;
+            padding: 20px 25px;
+            border-bottom: 1px solid #f3f4f6;
+            transition: all 0.2s;
+        }
+
+        .ranking-list-item:hover {
+            background: #f9fafb;
+        }
+
+        .ranking-list-item:last-child {
+            border-bottom: none;
+        }
+
+        .list-rank {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+            color: #9ca3af;
+            background: #f3f4f6;
+            border-radius: 8px;
+            margin-right: 20px;
+        }
+
+        .list-service-info {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .list-service-avatar {
+            font-size: 32px;
+        }
+
+        .list-service-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        .list-stats {
+            display: flex;
+            gap: 30px;
+            margin-left: auto;
+        }
+
+        .list-stat {
+            text-align: center;
+        }
+
+        .list-stat-label {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 4px;
+        }
+
+        .list-stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 80px;
+            color: #9ca3af;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .podium {
+                grid-template-columns: 1fr;
+            }
+
+            .podium-item {
+                order: unset !important;
+            }
+
+            .list-stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include 'includes/admin_header.html' %}
+    
+    <div class="ranking-container">
+        <div class="page-header">
+            <h2>🏆 客服评价排行榜</h2>
+            <button onclick="window.location.reload()" class="filter-item button">刷新排行</button>
+        </div>
+
+        <!-- 筛选栏 -->
+        <div class="filter-bar">
+            <div class="filter-item">
+                <label>统计周期</label>
+                <select id="daysFilter">
+                    <option value="7">最近7天</option>
+                    <option value="30" selected>最近30天</option>
+                    <option value="90">最近90天</option>
+                </select>
+            </div>
+            <div class="filter-item" style="justify-content: flex-end;">
+                <label>&nbsp;</label>
+                <button onclick="loadRanking()">查询排行</button>
+            </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div id="loadingState" class="loading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <div>正在加载排行榜...</div>
+        </div>
+
+        <!-- 前三名领奖台 -->
+        <div id="podium" class="podium" style="display: none;"></div>
+
+        <!-- 其他排名 -->
+        <div id="otherRankings" class="other-rankings" style="display: none;">
+            <div class="section-header">
+                <div class="section-title">其他排名</div>
+            </div>
+            <ul class="ranking-list" id="rankingList"></ul>
+        </div>
+
+        <!-- 空状态 -->
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">📭</div>
+            <div style="font-size: 18px; font-weight: 500; margin-bottom: 8px;">暂无排行数据</div>
+            <div style="font-size: 14px;">当前时间段内没有评价记录</div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+    <script>
+        async function loadRanking() {
+            const days = document.getElementById('daysFilter').value;
+            
+            // 显示加载状态
+            document.getElementById('loadingState').style.display = 'block';
+            document.getElementById('podium').style.display = 'none';
+            document.getElementById('otherRankings').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'none';
+            
+            try {
+                const response = await fetch(`/api/comment/ranking?days=${days}&limit=20`);
+                const result = await response.json();
+                
+                document.getElementById('loadingState').style.display = 'none';
+                
+                if (result.code === 0 && result.data && result.data.length > 0) {
+                    renderPodium(result.data.slice(0, 3));
+                    
+                    if (result.data.length > 3) {
+                        renderOtherRankings(result.data.slice(3));
+                    }
+                } else {
+                    document.getElementById('emptyState').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('加载排行榜失败:', error);
+                document.getElementById('loadingState').style.display = 'none';
+                showModal('加载失败', '无法加载排行榜数据，请稍后重试', 'error');
+            }
+        }
+
+        function renderPodium(topThree) {
+            const podium = document.getElementById('podium');
+            podium.innerHTML = '';
+            
+            topThree.forEach((item, index) => {
+                const rank = index + 1;
+                const stars = '★'.repeat(Math.round(item.avg_score)) + '☆'.repeat(5 - Math.round(item.avg_score));
+                
+                const div = document.createElement('div');
+                div.className = `podium-item rank-${rank}`;
+                div.innerHTML = `
+                    <div class="rank-badge">${rank}</div>
+                    <div class="service-avatar">👨‍💼</div>
+                    <div class="service-name">${item.service_name}</div>
+                    <div class="score-display">
+                        <div class="star-rating">${stars}</div>
+                        <div class="score-number">${item.avg_score.toFixed(1)}</div>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">评价数</div>
+                            <div class="stat-value">${item.total_count}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">满意度</div>
+                            <div class="stat-value">${item.satisfaction_rate.toFixed(1)}%</div>
+                        </div>
+                    </div>
+                `;
+                podium.appendChild(div);
+            });
+            
+            podium.style.display = 'grid';
+        }
+
+        function renderOtherRankings(others) {
+            const list = document.getElementById('rankingList');
+            list.innerHTML = '';
+            
+            others.forEach((item, index) => {
+                const rank = index + 4; // 从第4名开始
+                const stars = '★'.repeat(Math.round(item.avg_score)) + '☆'.repeat(5 - Math.round(item.avg_score));
+                
+                const li = document.createElement('li');
+                li.className = 'ranking-list-item';
+                li.innerHTML = `
+                    <div class="list-rank">${rank}</div>
+                    <div class="list-service-info">
+                        <div class="list-service-avatar">👨‍💼</div>
+                        <div class="list-service-name">${item.service_name}</div>
+                    </div>
+                    <div class="list-stats">
+                        <div class="list-stat">
+                            <div class="list-stat-label">评分</div>
+                            <div class="list-stat-value">
+                                <span class="star-rating" style="font-size: 14px;">${stars}</span>
+                                <span style="margin-left: 4px;">${item.avg_score.toFixed(1)}</span>
+                            </div>
+                        </div>
+                        <div class="list-stat">
+                            <div class="list-stat-label">评价数</div>
+                            <div class="list-stat-value">${item.total_count}</div>
+                        </div>
+                        <div class="list-stat">
+                            <div class="list-stat-label">满意度</div>
+                            <div class="list-stat-value">${item.satisfaction_rate.toFixed(1)}%</div>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+            
+            document.getElementById('otherRankings').style.display = 'block';
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', function() {
+            loadRanking();
+        });
+    </script>
+</body>
+</html>
+

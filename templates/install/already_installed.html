@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统已安装</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/font-awesome/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/install/already_installed.css') }}">
+</head>
+<body>
+    <div class="message-box">
+        <div class="icon">
+            <i class="fas fa-shield-alt"></i>
+        </div>
+        <h1>系统已安装</h1>
+        <p>检测到系统已经安装完成，无法重复安装。</p>
+        <p>如需重新安装，请删除 <code>install/install.lock</code> 文件。</p>
+        
+        <div>
+            <a href="/" class="btn">
+                <i class="fas fa-home"></i> 返回首页
+            </a>
+            <a href="/login" class="btn btn-secondary">
+                <i class="fas fa-sign-in-alt"></i> 前往登录
+            </a>
+        </div>
+
+        <div class="warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>警告：</strong>删除install.lock文件并重新安装将清空所有数据！
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/theme-manager.js') }}"></script>
+</body>
+</html>
