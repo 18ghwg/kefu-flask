@@ -191,49 +191,49 @@
 
 <!-- 快捷操作 -->
 <div class="quick-actions">
-    <a href="/service/chat" class="action-card">
+    <a href="{{ url_for('service_panel.chat') }}" class="action-card">
         <div class="action-icon">💬</div>
         <h3>客服工作台</h3>
         <p>进入客服聊天界面，开始接待访客</p>
     </a>
 
-    <a href="/admin/visitors" class="action-card">
+    <a href="{{ url_for('admin_panel.visitors') }}" class="action-card">
         <div class="action-icon">👥</div>
         <h3>访客管理</h3>
         <p>查看和管理所有访客信息</p>
     </a>
 
-    <a href="/admin/dashboard" class="action-card">
+    <a href="{{ url_for('admin_panel.dashboard') }}" class="action-card">
         <div class="action-icon">📊</div>
         <h3>数据看板</h3>
         <p>查看系统统计数据和图表分析</p>
     </a>
 
-    <a href="/admin/knowledge" class="action-card">
+    <a href="{{ url_for('admin_panel.knowledge') }}" class="action-card">
         <div class="action-icon">📚</div>
         <h3>知识库</h3>
         <p>管理智能机器人的问答知识</p>
     </a>
 
-    <a href="/admin/services" class="action-card">
+    <a href="{{ url_for('admin_panel.services') }}" class="action-card">
         <div class="action-icon">👨‍💼</div>
         <h3>客服管理</h3>
         <p>添加、编辑和管理客服人员</p>
     </a>
 
-    <a href="/admin/queue-management" class="action-card">
+    <a href="{{ url_for('admin_panel.queue_management') }}" class="action-card">
         <div class="action-icon">📋</div>
         <h3>队列管理</h3>
         <p>实时监控排队和会话分配</p>
     </a>
 
-    <a href="/admin/comments" class="action-card">
+    <a href="{{ url_for('admin_panel.comments') }}" class="action-card">
         <div class="action-icon">⭐</div>
         <h3>评价管理</h3>
         <p>查看访客对服务的评价反馈</p>
     </a>
 
-    <a href="/admin/system-settings" class="action-card">
+    <a href="{{ url_for('admin_panel.system_settings') }}" class="action-card">
         <div class="action-icon">⚙️</div>
         <h3>系统设置</h3>
         <p>配置系统参数和功能开关</p>

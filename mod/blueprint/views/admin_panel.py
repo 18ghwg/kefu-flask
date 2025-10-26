@@ -200,3 +200,11 @@ def operation_logs():
         return redirect(url_for('service_panel.chat'))
     
     return render_template('admin/operation_logs.html')
+
+
+@admin_panel_bp.route('/profile')
+@login_required
+def profile():
+    """个人设置（包含个人信息和修改密码）"""
+    # 所有已登录用户都可以访问个人设置页面
+    return render_template('admin/profile.html')

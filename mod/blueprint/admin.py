@@ -903,3 +903,86 @@ def get_region_statistics():
     except Exception as e:
         logger.error(f'获取地区统计失败: {e}')
         return jsonify({'code': -1, 'msg': str(e)}), 500
+
+
+# ========== 个人设置API ==========
+
+@admin_bp.route('/profile', methods=['GET'])
+@login_required
+def get_profile():
+    """获取当前用户个人信息"""
+    try:
+        user_data = {
+            'service_id': current_user.service_id,
+            'user_name': current_user.user_name,
+            'nick_name': current_user.nick_name,
+            'phone': current_user.phone or '',
+            'email': current_user.email or '',
+            'avatar': current_user.avatar or '/static/images/avatar.png',
+            'level': current_user.level,
+            'business_id': current_user.business_id
+        }
+        
+        return jsonify({
+            'code': 0,
+            'msg': '获取成功',
+            'data': user_data
+        })
+        
+    except Exception as e:
+        logger.error(f'获取个人信息失败: {e}')
+        return jsonify({'code': -1, 'msg': str(e)}), 500
+
+
+@admin_bp.route('/profile', methods=['PUT'])
+@login_required
+@log_operation(
+    module='个人设置',
+    action='update',
+    description_template='{user}修改了个人信息',
+    success_msg='个人信息修改成功',
+    error_msg='个人信息修改失败'
+)
+def update_profile():
+    """更新当前用户个人信息"""
+    try:
+        from mod.mysql.models import Service
+        from exts import db
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'code': -1, 'msg': '缺少参数'}), 400
+        
+        # 获取当前用户
+        service = Service.query.get(current_user.service_id)
+        if not service:
+            return jsonify({'code': -1, 'msg': '用户不存在'}), 404
+        
+        # 允许更新的字段（YAGNI原则：只更新必要字段）
+        allowed_fields = ['nick_name', 'phone', 'email', 'avatar']
+        
+        for field in allowed_fields:
+            if field in data:
+                setattr(service, field, data[field])
+        
+        db.session.commit()
+        
+        logger.info(f"用户 {current_user.user_name} 更新了个人信息")
+        return jsonify({
+            'code': 0,
+            'msg': '更新成功',
+            'data': {
+                'service_id': service.service_id,
+                'user_name': service.user_name,
+                'nick_name': service.nick_name,
+                'phone': service.phone,
+                'email': service.email,
+                'avatar': service.avatar
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.error(f'更新个人信息失败: {e}')
+        return jsonify({'code': -1, 'msg': str(e)}), 500

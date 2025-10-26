@@ -1,0 +1,428 @@
+{% extends "admin/base.html" %}
+
+{% block title %}个人设置{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-separator">/</span>
+<span>个人设置</span>
+{% endblock %}
+
+{% block extra_css %}
+<!-- 个人设置页面样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/profile.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <!-- 个人信息卡片 -->
+    <div class="profile-card">
+        <h2 class="card-title">
+            <i class="fas fa-user"></i>
+            个人信息
+        </h2>
+        <p class="card-description">管理您的个人资料和联系方式</p>
+
+        <form id="profileForm">
+            <!-- 用户名（只读） -->
+            <div class="form-group">
+                <label class="form-label">用户名</label>
+                <input type="text" class="form-control" id="userName" disabled>
+                <div class="form-help">用户名不可修改</div>
+            </div>
+
+            <!-- 昵称 -->
+            <div class="form-group">
+                <label class="form-label">
+                    昵称
+                    <span class="required">*</span>
+                </label>
+                <input type="text" class="form-control" id="nickName" required>
+                <div class="form-help">在客服工作台和管理后台中显示的名称</div>
+            </div>
+
+            <!-- 手机号 -->
+            <div class="form-group">
+                <label class="form-label">手机号</label>
+                <input type="tel" class="form-control" id="phone" placeholder="请输入手机号">
+            </div>
+
+            <!-- 邮箱 -->
+            <div class="form-group">
+                <label class="form-label">邮箱</label>
+                <input type="email" class="form-control" id="email" placeholder="请输入邮箱">
+            </div>
+
+            <!-- 头像 -->
+            <div class="form-group">
+                <label class="form-label">头像</label>
+                <div class="avatar-upload">
+                    <img id="avatarPreview" class="avatar-preview" src="/static/images/avatar.png" alt="头像">
+                    <div class="avatar-actions">
+                        <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('avatarInput').click()">
+                            <i class="fas fa-upload"></i> 上传头像
+                        </button>
+                        <div class="form-help">支持 JPG、PNG 格式，不超过 2MB</div>
+                    </div>
+                </div>
+                <input type="hidden" id="avatar" name="avatar">
+            </div>
+
+            <!-- 按钮组 -->
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> 保存修改
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="loadProfile()">
+                    <i class="fas fa-undo"></i> 重置
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 修改密码卡片 -->
+    <div class="profile-card">
+        <h2 class="card-title">
+            <i class="fas fa-key"></i>
+            修改密码
+        </h2>
+        <p class="card-description">定期更换密码，保护账户安全</p>
+
+        <form id="passwordForm">
+            <!-- 旧密码 -->
+            <div class="form-group">
+                <label class="form-label">
+                    当前密码
+                    <span class="required">*</span>
+                </label>
+                <input type="password" class="form-control" id="oldPassword" required placeholder="请输入当前密码">
+            </div>
+
+            <!-- 新密码 -->
+            <div class="form-group">
+                <label class="form-label">
+                    新密码
+                    <span class="required">*</span>
+                </label>
+                <input type="password" class="form-control" id="newPassword" required placeholder="请输入新密码">
+                <div class="form-help">密码长度至少6位</div>
+            </div>
+
+            <!-- 确认密码 -->
+            <div class="form-group">
+                <label class="form-label">
+                    确认新密码
+                    <span class="required">*</span>
+                </label>
+                <input type="password" class="form-control" id="confirmPassword" required placeholder="请再次输入新密码">
+            </div>
+
+            <!-- 按钮组 -->
+            <div class="btn-group">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-lock"></i> 修改密码
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="resetPasswordForm()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 加载遮罩 -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner">
+        <div class="spinner"></div>
+        <div>加载中...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 全局变量
+let currentProfile = null;
+
+// 页面加载时获取个人信息
+document.addEventListener('DOMContentLoaded', function() {
+    loadProfile();
+    setupAvatarUpload();
+});
+
+// 加载个人信息
+async function loadProfile() {
+    try {
+        showLoading(true);
+        const response = await fetch('/api/admin/profile', {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': window.CSRF.getToken()
+            }
+        });
+
+        const result = await response.json();
+        
+        if (result.code === 0) {
+            currentProfile = result.data;
+            displayProfile(result.data);
+        } else {
+            showMessage('获取个人信息失败：' + result.msg, 'error');
+        }
+    } catch (error) {
+        console.error('加载个人信息失败:', error);
+        showMessage('加载失败，请刷新页面重试', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// 显示个人信息
+function displayProfile(data) {
+    document.getElementById('userName').value = data.user_name || '';
+    document.getElementById('nickName').value = data.nick_name || '';
+    document.getElementById('phone').value = data.phone || '';
+    document.getElementById('email').value = data.email || '';
+    document.getElementById('avatar').value = data.avatar || '';
+    
+    // 显示头像
+    const avatarUrl = data.avatar || '/static/images/avatar.png';
+    document.getElementById('avatarPreview').src = avatarUrl;
+}
+
+// 头像上传设置
+function setupAvatarUpload() {
+    const input = document.getElementById('avatarInput');
+    input.addEventListener('change', async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // 验证文件大小（2MB）
+        if (file.size > 2 * 1024 * 1024) {
+            showMessage('图片大小不能超过 2MB', 'error');
+            return;
+        }
+
+        // 验证文件类型
+        if (!file.type.startsWith('image/')) {
+            showMessage('只能上传图片文件', 'error');
+            return;
+        }
+
+        // 上传文件
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            showLoading(true);
+            const response = await fetch('/api/upload/image', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': window.CSRF.getToken()
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.code === 0) {
+                const avatarUrl = result.data.url;
+                document.getElementById('avatar').value = avatarUrl;
+                document.getElementById('avatarPreview').src = avatarUrl;
+                showMessage('头像上传成功', 'success');
+            } else {
+                showMessage('上传失败：' + result.msg, 'error');
+            }
+        } catch (error) {
+            console.error('上传头像失败:', error);
+            showMessage('上传失败，请重试', 'error');
+        } finally {
+            showLoading(false);
+        }
+    });
+}
+
+// 提交个人信息表单
+document.getElementById('profileForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const data = {
+        nick_name: document.getElementById('nickName').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        avatar: document.getElementById('avatar').value
+    };
+
+    // 验证昵称
+    if (!data.nick_name) {
+        showMessage('请输入昵称', 'error');
+        return;
+    }
+
+    // 验证邮箱格式（如果填写了）
+    if (data.email && !isValidEmail(data.email)) {
+        showMessage('请输入有效的邮箱地址', 'error');
+        return;
+    }
+
+    try {
+        showLoading(true);
+        const response = await fetch('/api/admin/profile', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.CSRF.getToken()
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        
+        if (result.code === 0) {
+            showMessage('个人信息更新成功', 'success');
+            // 重新加载数据
+            loadProfile();
+        } else {
+            showMessage('更新失败：' + result.msg, 'error');
+        }
+    } catch (error) {
+        console.error('更新个人信息失败:', error);
+        showMessage('更新失败，请重试', 'error');
+    } finally {
+        showLoading(false);
+    }
+});
+
+// 提交修改密码表单
+document.getElementById('passwordForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const oldPassword = document.getElementById('oldPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+
+    // 验证
+    if (!oldPassword || !newPassword || !confirmPassword) {
+        showMessage('请填写完整的密码信息', 'error');
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        showMessage('新密码长度至少6位', 'error');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        showMessage('两次输入的新密码不一致', 'error');
+        return;
+    }
+
+    if (oldPassword === newPassword) {
+        showMessage('新密码不能与旧密码相同', 'error');
+        return;
+    }
+
+    try {
+        showLoading(true);
+        const response = await fetch('/api/auth/change_password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': window.CSRF.getToken()
+            },
+            body: JSON.stringify({
+                old_password: oldPassword,
+                new_password: newPassword
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.code === 0) {
+            showMessage('密码修改成功，请重新登录', 'success');
+            // 清空表单
+            resetPasswordForm();
+            // 3秒后跳转到登录页
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 3000);
+        } else {
+            showMessage('修改失败：' + result.msg, 'error');
+        }
+    } catch (error) {
+        console.error('修改密码失败:', error);
+        showMessage('修改失败，请重试', 'error');
+    } finally {
+        showLoading(false);
+    }
+});
+
+// 重置密码表单
+function resetPasswordForm() {
+    document.getElementById('passwordForm').reset();
+}
+
+// 邮箱验证
+function isValidEmail(email) {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+}
+
+// 显示加载状态
+function showLoading(show) {
+    const overlay = document.getElementById('loadingOverlay');
+    if (show) {
+        overlay.classList.add('show');
+    } else {
+        overlay.classList.remove('show');
+    }
+}
+
+// 显示消息提示
+function showMessage(message, type = 'info') {
+    // 创建提示元素
+    const alert = document.createElement('div');
+    alert.className = 'message-alert';
+    alert.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+        min-width: 250px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    `;
+
+    // 根据类型设置颜色
+    if (type === 'success') {
+        alert.style.background = '#10b981';
+        alert.style.color = 'white';
+        alert.innerHTML = '<i class="fas fa-check-circle"></i>' + message;
+    } else if (type === 'error') {
+        alert.style.background = '#ef4444';
+        alert.style.color = 'white';
+        alert.innerHTML = '<i class="fas fa-exclamation-circle"></i>' + message;
+    } else {
+        alert.style.background = '#3b82f6';
+        alert.style.color = 'white';
+        alert.innerHTML = '<i class="fas fa-info-circle"></i>' + message;
+    }
+
+    document.body.appendChild(alert);
+
+    // 3秒后自动移除
+    setTimeout(() => {
+        alert.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => {
+            document.body.removeChild(alert);
+        }, 300);
+    }, 3000);
+}
+</script>
+{% endblock %}
+
