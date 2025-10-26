@@ -2,27 +2,34 @@
         // ========== 工具函数：HTML清洁和日期格式化 ==========
         
         // HTML清洁函数（防止XSS，但允许安全的HTML标签）
+        // 🛡️ 增强版：支持安全的HTML标签白名单（用于机器人消息）
         function sanitizeHtml(html) {
             if (!html) return '';
             const temp = document.createElement('div');
             temp.innerHTML = html;
             
-            // 移除危险标签
-            temp.querySelectorAll('script, style, iframe, object, embed, form, input, button').forEach(el => el.remove());
+            // 移除危险标签（保留安全标签：a, p, br, strong, em, u, b, i）
+            temp.querySelectorAll('script, style, iframe, object, embed, form, input, button, link, meta').forEach(el => el.remove());
             
-            // 移除危险属性
+            // 移除危险属性（保留安全属性：href, title, target, style的某些安全属性）
             temp.querySelectorAll('*').forEach(el => {
                 Array.from(el.attributes).forEach(attr => {
+                    // 移除所有on*事件处理器和危险属性
                     if (attr.name.startsWith('on') || attr.name === 'formaction' || attr.name === 'form') {
                         el.removeAttribute(attr.name);
                     }
                 });
                 
-                // 清理链接
+                // 清理链接：只允许http/https/mailto协议
                 if (el.tagName === 'A' && el.hasAttribute('href')) {
                     const href = el.getAttribute('href');
                     if (href && !href.match(/^(https?:|mailto:)/i)) {
                         el.removeAttribute('href');
+                    }
+                    // 外部链接添加安全属性
+                    if (href && href.match(/^https?:/i)) {
+                        el.setAttribute('target', '_blank');
+                        el.setAttribute('rel', 'noopener noreferrer');
                     }
                 }
             });
@@ -916,10 +923,14 @@
             // 确定昵称
             const displayName = nickname || (type === 'robot' ? '智能助手' : type === 'service' ? '客服' : '访客');
             
-            // 尝试解析JSON格式的内容（图片、文件等）
+            // 🛡️ 安全渲染：区分机器人消息和用户消息
+            // 机器人消息（type='robot'）：允许渲染安全的HTML标签（如超链接）
+            // 用户消息（访客/客服）：强制转义HTML，防止XSS攻击
             let messageContent = content;
             let isHtmlContent = false;
+            
             try {
+                // 尝试解析JSON格式的内容（图片、文件等）
                 const parsedContent = JSON.parse(content);
                 if (parsedContent.type === 'file' && parsedContent.url) {
                     isHtmlContent = true;
@@ -942,14 +953,28 @@
                     }
                 }
             } catch (e) {
-                // 不是JSON格式，检查是否包含HTML标签
-                if (/<[^>]+>/.test(content)) {
-                    // 包含HTML标签，进行清洁后渲染
-                    messageContent = sanitizeHtml(content);
-                    isHtmlContent = true;
+                // 不是JSON格式，根据消息来源处理
+                if (type === 'robot') {
+                    // 🤖 机器人消息：检查是否包含HTML标签
+                    if (/<[^>]+>/.test(content)) {
+                        // 包含HTML标签，使用sanitizeHtml清洁后渲染（允许安全标签如<a>）
+                        messageContent = sanitizeHtml(content);
+                        isHtmlContent = true;
+                        console.log('🤖 机器人消息已渲染HTML:', messageContent.substring(0, 100));
+                    } else {
+                        // 普通文本内容
+                        messageContent = content;
+                    }
                 } else {
-                    // 普通文本内容
-                    messageContent = content;
+                    // 👤 用户消息（访客/客服）：检查是否包含HTML标签
+                    if (/<[^>]+>/.test(content)) {
+                        // 包含HTML标签，转义处理（不渲染）
+                        messageContent = escapeHtml(content);
+                        console.log('👤 用户消息已转义HTML');
+                    } else {
+                        // 普通文本内容，保持原样
+                        messageContent = content;
+                    }
                 }
             }
             
@@ -1117,10 +1142,10 @@
         
         // 创建消息元素（不直接添加到DOM）
         function createMessageElement(msg) {
-            // ✅ 优先根据service_id判断：0=机器人，>0=客服，否则根据direction判断
+            // ✅ 优先根据service_id判断：null=机器人，>0=客服，否则根据direction判断
             let msgType;
-            if (msg.service_id === 0) {
-                msgType = 'robot';
+            if (msg.service_id === null || msg.service_id === 0) {
+                msgType = 'robot';  // ✅ 兼容null和0（旧数据）
             } else if (msg.direction === 'to_visitor') {
                 msgType = 'service';
             } else {
@@ -1170,10 +1195,10 @@
         
         // 渲染历史消息（helper函数）
         function renderHistoryMessage(msg) {
-            // ✅ 优先根据service_id判断：0=机器人，>0=客服，否则根据direction判断
+            // ✅ 优先根据service_id判断：null=机器人，>0=客服，否则根据direction判断
             let msgType;
-            if (msg.service_id === 0) {
-                msgType = 'robot';
+            if (msg.service_id === null || msg.service_id === 0) {
+                msgType = 'robot';  // ✅ 兼容null和0（旧数据）
             } else if (msg.direction === 'to_visitor') {
                 msgType = 'service';
             } else {

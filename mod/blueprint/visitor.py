@@ -131,7 +131,7 @@ def get_history():
                 'direction': msg.direction,
                 'created_at': msg.created_at.isoformat() if msg.created_at else None,
                 'timestamp': msg.timestamp,
-                'service_id': msg.service_id,  # 添加service_id字段，0表示机器人
+                'service_id': msg.service_id,  # 添加service_id字段，None表示机器人
                 'visitor_id': msg.visitor_id   # 添加visitor_id字段
             }
             message_list.append(msg_dict)

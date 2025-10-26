@@ -326,7 +326,7 @@ class Chat(db.Model):
     
     cid = db.Column(db.Integer, primary_key=True)
     visitor_id = db.Column(db.String(200), nullable=False, comment='访客ID')
-    service_id = db.Column(db.Integer, db.ForeignKey('services.service_id'), nullable=False, comment='客服ID')
+    service_id = db.Column(db.Integer, db.ForeignKey('services.service_id'), nullable=True, comment='客服ID（NULL表示机器人）')
     business_id = db.Column(db.Integer, db.ForeignKey('businesses.id'), nullable=False, comment='商户ID')
     
     # 消息内容

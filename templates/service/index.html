@@ -149,10 +149,10 @@
                 <p>您可以从这里快速进入聊天界面或查看相关功能</p>
                 
                 <div class="action-buttons">
-                    <a href="/service/chat" class="btn btn-primary">
+                    <a href="{{ url_for('service_panel.chat') }}" class="btn btn-primary">
                         💬 进入聊天界面
                     </a>
-                    <a href="/admin/queue-management" class="btn btn-secondary">
+                    <a href="{{ url_for('admin_panel.queue_management') }}" class="btn btn-secondary">
                         📋 查看队列管理
                     </a>
                 </div>

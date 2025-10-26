@@ -176,7 +176,7 @@
                     <p><strong>用户名：</strong><span id="finalUsername"></span></p>
                     <p><strong>密码：</strong><span id="finalPassword"></span></p>
                 </div>
-                <button class="btn btn-success btn-large" onclick="window.location.href='/login'">
+                <button class="btn btn-success btn-large" onclick="window.location.href='{{ url_for('auth_view.login') }}'">
                     <i class="fas fa-sign-in-alt"></i> 前往登录
                 </button>
             </div>

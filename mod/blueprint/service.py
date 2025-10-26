@@ -275,6 +275,14 @@ def get_visitors_list():
             
             is_active = queue.state == 'normal' if queue else False
             
+            # ✅ 处理最后一条消息：如果是机器人发送，添加🤖图标
+            last_message_text = ''
+            if last_chat:
+                last_message_text = strip_html_tags(last_chat.content)
+                # 如果是机器人消息（service_id为NULL或0且方向是to_visitor），添加emoji图标
+                if last_chat.direction == 'to_visitor' and (last_chat.service_id is None or last_chat.service_id == 0):
+                    last_message_text = '🤖 ' + last_message_text
+            
             visitors_list.append({
                 'visitor_id': visitor.visitor_id,
                 'visitor_name': visitor.visitor_name,
@@ -290,7 +298,7 @@ def get_visitors_list():
                 'queue_id': queue.qid if queue else None,  # ⚡ 没有队列时为None
                 'queue_state': queue.state if queue else 'closed',  # ⚡ 没有队列时默认closed
                 'is_active': is_active,  # ⚡ 没有队列时不活跃
-                'last_message': strip_html_tags(last_chat.content) if last_chat else '',  # ⚡ 智能处理：JSON保留完整，文本过滤HTML
+                'last_message': last_message_text,  # ⚡ 智能处理：JSON保留完整，文本过滤HTML，机器人消息加🤖
                 'last_message_time': last_chat.created_at.isoformat() if last_chat else visitor.last_visit_time.isoformat(),
                 'unread_count': unread_count,  # ⚡ 真实的未读消息计数
                 'updated_at': queue.updated_at.isoformat() if queue else visitor.updated_at.isoformat()
@@ -827,8 +835,8 @@ def get_chat_history():
             # 根据方向和service_id判断发送者类型
             if msg.direction == 'to_service':
                 from_type = 'visitor'
-            elif msg.service_id == 0:
-                from_type = 'robot'  # service_id=0 表示机器人
+            elif msg.service_id is None:
+                from_type = 'robot'  # service_id=None 表示机器人
             else:
                 from_type = 'service'
             

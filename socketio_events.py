@@ -5,7 +5,7 @@ SocketIO 事件处理
 from flask import request, session
 from flask_socketio import emit, join_room, leave_room, rooms
 from exts import socketio, db, app, redis_client
-from mod.mysql.models import Service, Visitor, Chat, Queue
+from mod.mysql.models import Service, Visitor, Chat, Queue, SystemSetting
 from mod.mysql.ModuleClass import ip_location_service
 from mod.mysql.ModuleClass.RobotServiceClass import RobotService
 from mod.utils.security_filter import SecurityFilter, sanitize_message
@@ -130,8 +130,8 @@ def handle_disconnect():
                     del online_users[user_id]
                     logger.info(f"User {user_type}_{uid} 所有连接已断开，离线")
                     
-                    # 如果是客服，更新数据库状态并广播统计更新
-                    if user_type == 'service':
+                    # ✅ 如果是客服或管理员，更新数据库状态并广播统计更新
+                    if user_type in ['service', 'admin']:
                         try:
                             service_id = info.get('service_id')
                             business_id = info.get('business_id', 1)
@@ -569,7 +569,8 @@ def handle_visitor_join(data):
                                 
                                 # 🔥 实时推送负载变化到客服端
                                 for user_key, user_info in list(online_users.items()):
-                                    if user_info['type'] == 'service' and user_info.get('service_id') == service_id:
+                                    # ✅ 同时检查service和admin
+                                    if user_info['type'] in ['service', 'admin'] and user_info.get('service_id') == service_id:
                                         sids = user_info.get('sids', [])
                                         for sid in sids:
                                             socketio.emit('workload_update', {
@@ -625,7 +626,8 @@ def handle_visitor_join(data):
                     # 检查原客服是否在线
                     old_service_online = False
                     for user_key, user_info in online_users.items():
-                        if (user_info['type'] == 'service' and 
+                        # ✅ 同时检查service和admin
+                        if (user_info['type'] in ['service', 'admin'] and 
                             user_info.get('service_id') == old_service_id):
                             # 检查是否有有效连接
                             if ('sids' in user_info and len(user_info['sids']) > 0) or \
@@ -724,30 +726,43 @@ def handle_visitor_join(data):
         }
         
         # 查询在线客服（优化：直接在join_success中返回，减少一次请求）
-        # ✅ 统一：管理员（admin）和普通客服（service）都算入在线客服
+        # ✅ 修复多worker同步问题：从数据库查询而不是从online_users内存字典
+        # 这样确保所有worker看到的在线状态是一致的（数据库是唯一真相来源）
         online_services = []
-        seen_service_ids = set()  # ✅ 去重：防止同一客服既有admin连接又有service连接
-        
-        for user_id, info in online_users.items():
-            # 🆕 检查是否有有效连接和有效的service_id
-            has_connection = False
-            if 'sids' in info and len(info['sids']) > 0:
-                has_connection = True
-            elif 'sid' in info and info['sid']:
-                has_connection = True
+        try:
+            # 从数据库查询state='online'的客服
+            online_service_records = Service.query.filter_by(
+                business_id=business_id,
+                state='online'
+            ).all()
             
-            # ✅ 合并 admin 和 service 类型，都算作在线客服
-            if info['type'] in ['service', 'admin'] and has_connection and info.get('service_id'):
-                service_id_val = info.get('service_id')
-                # ✅ 去重：避免同一客服被统计多次
-                if service_id_val not in seen_service_ids:
-                    seen_service_ids.add(service_id_val)
-                    online_services.append({
-                        'service_id': service_id_val,
-                        'name': info.get('name')
-                    })
-        
-        logger.info(f"📊 visitor_join返回在线客服数：{len(online_services)}个")
+            for service in online_service_records:
+                online_services.append({
+                    'service_id': service.service_id,
+                    'name': service.nick_name
+                })
+            
+            logger.info(f"📊 visitor_join返回在线客服数：{len(online_services)}个 (从数据库查询)")
+        except Exception as e:
+            logger.error(f"查询在线客服失败: {e}")
+            # 如果数据库查询失败，降级使用online_users（保持兼容性）
+            seen_service_ids = set()
+            for user_id, info in online_users.items():
+                has_connection = False
+                if 'sids' in info and len(info['sids']) > 0:
+                    has_connection = True
+                elif 'sid' in info and info['sid']:
+                    has_connection = True
+                
+                if info['type'] in ['service', 'admin'] and has_connection and info.get('service_id'):
+                    service_id_val = info.get('service_id')
+                    if service_id_val not in seen_service_ids:
+                        seen_service_ids.add(service_id_val)
+                        online_services.append({
+                            'service_id': service_id_val,
+                            'name': info.get('name')
+                        })
+            logger.warning(f"⚠️ 数据库查询失败，降级使用online_users，客服数：{len(online_services)}个")
         
         # 返回成功响应（包含在线客服信息 + 队列信息）
         emit('join_success', {
@@ -764,8 +779,9 @@ def handle_visitor_join(data):
         assigned_service_id = queue_info.get('service_id') if queue_info else None
         
         # 获取所有在线客服的详细信息（包含level）
+        # ✅ 同时检查service和admin
         for user_key, user_info in online_users.items():
-            if user_info['type'] == 'service':
+            if user_info['type'] in ['service', 'admin']:
                 service_id_val = user_info.get('service_id')
                 if service_id_val:
                     # 查询客服详细信息
@@ -923,13 +939,15 @@ def handle_send_message(data):
         business_id = data.get('business_id', 1)  # 默认商户ID为1
         
         # ========== 安全过滤：防止SSTI、XSS等攻击 ==========
-        if content and msg_type == 'text':
+        # 🛡️ 修复：只对访客和客服手动发送的消息进行HTML转义
+        # 机器人消息（from_type='robot'）不过滤，保留HTML格式（如超链接）
+        if content and msg_type == 'text' and from_type in ['visitor', 'service']:
             original_content = content
             content = sanitize_message(content, max_length=5000)
             
             # 如果内容被拦截（返回拦截消息），记录并通知用户
             if content == "[消息包含非法内容，已被系统拦截]":
-                logger.warning(f"拦截非法消息 - from: {from_id}, type: {from_type}, content: {original_content[:200]}")
+                logger.warning(f"🛡️ 拦截非法消息 - from: {from_id}, type: {from_type}, content: {original_content[:200]}")
                 emit('error', {
                     'msg': '您的消息包含不安全内容，已被系统拦截',
                     'timestamp': datetime.now().isoformat()
@@ -938,7 +956,9 @@ def handle_send_message(data):
             
             # 如果内容被修改，记录
             if content != original_content:
-                logger.info(f"消息已过滤 - from: {from_id}, original_length: {len(original_content)}, filtered_length: {len(content)}")
+                logger.info(f"🛡️ 消息已过滤 - from: {from_id}, type: {from_type}, original_length: {len(original_content)}, filtered_length: {len(content)}")
+        elif from_type == 'robot':
+            logger.debug(f"🤖 机器人消息不过滤，保留HTML格式: {content[:100]}")
         
         # ========== 访客发送消息时，更新设备信息和IP（性能优化：已禁用） ==========
         # ⚡ 性能优化：访客每次发消息都更新IP和地理位置会严重影响性能（每次500ms-2s）
@@ -1049,33 +1069,59 @@ def handle_send_message(data):
             logger.info(f"🔍 访客{visitor_id_val}发送消息，队列状态: queue={queue.qid if queue else 'None'}, service_id={queue.service_id if queue else 'N/A'}")
             
             # 输出当前online_users状态（调试用）
-            online_service_ids = [user_info.get('service_id') for user_key, user_info in online_users.items() if user_info['type'] == 'service']
+            # ✅ 同时统计service和admin
+            online_service_ids = [user_info.get('service_id') for user_key, user_info in online_users.items() if user_info['type'] in ['service', 'admin']]
             logger.info(f"📊 当前在线客服ID列表: {online_service_ids}")
             
             if queue and queue.service_id and queue.service_id > 0:
                 # 检查当前分配的客服是否在线（同时检查online_users和数据库）
                 current_service_online = False
+                found_in_memory = False
+                has_valid_connection = False
+                db_state = None
+                
+                logger.info(f"🔍 开始检查客服{queue.service_id}在线状态...")
                 
                 # 1. 先检查online_users（Socket连接状态）
+                # ✅ 修复：同时检查type='service'和type='admin'（管理员也是客服）
                 for user_key, user_info in online_users.items():
-                    if (user_info['type'] == 'service' and 
+                    if (user_info['type'] in ['service', 'admin'] and 
                         user_info.get('service_id') == queue.service_id):
+                        found_in_memory = True
+                        logger.info(f"✓ 客服{queue.service_id}在online_users中找到，user_key={user_key}, type={user_info['type']}")
+                        
                         # 检查是否有有效连接
-                        if ('sids' in user_info and len(user_info['sids']) > 0) or \
-                           ('sid' in user_info and user_info['sid']):
+                        sids_list = user_info.get('sids', [])
+                        sid_single = user_info.get('sid')
+                        logger.info(f"  - sids列表: {sids_list}, 单sid: {sid_single}")
+                        
+                        if (sids_list and len(sids_list) > 0) or sid_single:
+                            has_valid_connection = True
                             current_service_online = True
+                            logger.info(f"✓ 客服{queue.service_id}有有效Socket连接")
                             break
+                        else:
+                            logger.warning(f"✗ 客服{queue.service_id}在online_users中但无有效Socket连接")
+                
+                if not found_in_memory:
+                    logger.warning(f"✗ 客服{queue.service_id}不在online_users中")
                 
                 # 2. 如果online_users中显示在线，还要检查数据库状态（双重验证）
                 if current_service_online:
                     db_service = Service.query.get(queue.service_id)
-                    if db_service and db_service.state != 'online':
-                        logger.warning(f"⚠️ 客服{queue.service_id}在online_users中但数据库显示离线，判定为离线")
+                    if db_service:
+                        db_state = db_service.state
+                        logger.info(f"  - 数据库中客服{queue.service_id}状态: {db_state}")
+                        
+                        if db_service.state != 'online':
+                            logger.warning(f"⚠️ 客服{queue.service_id}在online_users中但数据库显示{db_state}，判定为离线")
+                            current_service_online = False
+                    else:
+                        logger.error(f"✗ 数据库中未找到客服{queue.service_id}记录")
                         current_service_online = False
                 
-                # 3. 如果online_users中没有，直接判定为离线
-                if not current_service_online:
-                    logger.warning(f"⚠️ 客服{queue.service_id}不在online_users中或数据库显示离线")
+                # 3. 最终判定结果
+                logger.info(f"{'✅' if current_service_online else '❌'} 客服{queue.service_id}在线判定结果: {current_service_online} (内存:{found_in_memory}, 连接:{has_valid_connection}, 数据库:{db_state})")
                 
                 if not current_service_online:
                     # 当前客服离线，使用智能分配重新分配
@@ -1129,8 +1175,9 @@ def handle_send_message(data):
                                     visitor_obj = Visitor.query.get(visitor_id_val)
                                     visitor_info = visitor_obj.to_dict() if visitor_obj else {'visitor_id': visitor_id_val, 'visitor_name': from_name}
                                     
+                                    # ✅ 同时通知service和admin
                                     for user_key, user_info in online_users.items():
-                                        if user_info['type'] == 'service':
+                                        if user_info['type'] in ['service', 'admin']:
                                             current_service_id = user_info.get('service_id')
                                             sids = user_info.get('sids', [])
                                             
@@ -1187,19 +1234,7 @@ def handle_send_message(data):
                                     import traceback
                                     logger.error(traceback.format_exc())
                                 
-                                # 通知访客客服已变更
-                                try:
-                                    emit('service_changed', {
-                                        'message': f'您的客服已变更为 {new_service.nick_name}',
-                                        'new_service': {
-                                            'service_id': new_service.service_id,
-                                            'nick_name': new_service.nick_name,
-                                            'avatar': new_service.avatar
-                                        },
-                                        'timestamp': datetime.now().isoformat()
-                                    }, room=f'visitor_{visitor_id_val}')
-                                except Exception as emit_err:
-                                    logger.error(f"通知访客客服变更失败: {emit_err}")
+                                # ✅ 已在第1132行发送过service_changed，此处删除重复发送
                             else:
                                 # 没有在线的人工客服，标记为未分配（机器人模式）
                                 old_service_id = queue.service_id
@@ -1262,7 +1297,7 @@ def handle_send_message(data):
                             db.session.commit()
                     else:
                         # 没有人工客服，标记为未分配（机器人模式）
-                        service_id_val = 0  # ✅ Chat表仍使用0表示机器人
+                        service_id_val = None  # ✅ Chat表使用None表示机器人
                         logger.info(f"🤖 访客{visitor_id_val}发送消息时分配给机器人（所有人工客服都不可用）")
                         
                         # 如果有队列记录，更新它
@@ -1277,9 +1312,9 @@ def handle_send_message(data):
             # 访客发给指定客服（备用）
             service_id_val = int(to_id)
         else:
-            # 访客发给所有客服，使用第一个客服ID或0
+            # 访客发给所有客服，使用第一个客服ID或None
             first_service = Service.query.filter_by(business_id=business_id).first()
-            service_id_val = first_service.service_id if first_service else 0
+            service_id_val = first_service.service_id if first_service else None
         
         chat = Chat(
             visitor_id=visitor_id_val,
@@ -1327,6 +1362,40 @@ def handle_send_message(data):
             logger.warning(f"⚠️ 找不到Queue记录，访客: {visitor_id_val}, 无法更新last_message_time")
         
         db.session.commit()
+        
+        # ✅ 客服回复后，立即将该访客的所有未读消息标记为已读
+        if from_type == 'service':
+            try:
+                # 标记该访客发给客服的所有未读消息为已读
+                unread_messages = Chat.query.filter_by(
+                    visitor_id=visitor_id_val,
+                    direction='to_service',
+                    state='unread'
+                ).update({'state': 'read'})
+                
+                if unread_messages > 0:
+                    db.session.commit()
+                    logger.info(f"✅ 客服{service_id_val}回复访客{visitor_id_val}，已将{unread_messages}条未读消息标记为已读")
+                    
+                    # 🔔 广播给所有在线客服：该访客的未读数量已清零
+                    for user_key, user_info in list(online_users.items()):
+                        if user_info['type'] in ['service', 'admin']:
+                            sids = user_info.get('sids', [])
+                            if not sids and 'sid' in user_info:
+                                sids = [user_info['sid']]
+                            
+                            for sid in sids:
+                                socketio.emit('unread_count_updated', {
+                                    'visitor_id': visitor_id_val,
+                                    'unread_count': 0,
+                                    'reason': 'service_replied',
+                                    'timestamp': datetime.now().isoformat()
+                                }, room=sid)
+                    
+                    logger.info(f"📢 已广播访客{visitor_id_val}的未读数量清零事件")
+            except Exception as e:
+                logger.error(f"标记已读消息失败: {e}")
+                db.session.rollback()
         
         # ⚡ 消息发送时广播统计更新（确保实时性）
         # 访客或客服发送消息都触发统计更新（表示会话活跃）
@@ -1432,12 +1501,17 @@ def handle_send_message(data):
                 auto_reply = None
                 reply_source = None
                 
+                # 🔍 调试日志：检查FAQ相关参数
+                logger.info(f"🔍 [FAQ诊断] 收到访客消息: content={content[:30]}...")
+                logger.info(f"🔍 [FAQ诊断] faq_answer={faq_answer[:50] if faq_answer else 'None'}...")
+                logger.info(f"🔍 [FAQ诊断] is_faq_click={is_faq_click}")
+                
                 if faq_answer and is_faq_click:
                     # FAQ回复（常见问题气泡点击）
                     # 🚫 不进行关键词匹配，直接使用FAQ答案
                     auto_reply = faq_answer
                     reply_source = 'faq'
-                    logger.info(f"📋 FAQ点击回复（不触发关键词匹配）: {auto_reply[:50]}...")
+                    logger.info(f"✅ [FAQ诊断] FAQ点击回复已启动: {auto_reply[:50]}...")
                 elif faq_answer:
                     # 兼容旧逻辑：有FAQ答案但没有FAQ点击标记
                     auto_reply = faq_answer
@@ -1461,9 +1535,12 @@ def handle_send_message(data):
                     if auto_reply:
                         reply_source = 'keyword'
                 
+                # 🔍 调试日志：检查auto_reply结果
+                logger.info(f"🔍 [FAQ诊断] auto_reply={'有内容' if auto_reply else 'None'}, reply_source={reply_source}")
+                
                 if auto_reply:
                     if reply_source == 'faq':
-                        logger.info(f"✅ FAQ自动回复（常见问题点击）")
+                        logger.info(f"✅ [FAQ诊断] FAQ自动回复流程开始（常见问题点击）")
                     elif reply_source == 'keyword':
                         # ✅ 检查在线客服（包括 admin 和 service）
                         online_services = [u for u in online_users.values() if u.get('type') in ['service', 'admin']]
@@ -1474,64 +1551,69 @@ def handle_send_message(data):
                             logger.info(f"✅ 没有在线客服，触发机器人自动回复")
                         logger.info(f"   关键词匹配成功: {auto_reply[:50]}...")
                     
-                    if auto_reply:
-                        # 延迟一小段时间，模拟人工回复
-                        import time
-                        time.sleep(0.5)
-                        
-                        # 机器人回复使用 service_id=0 来标识（区别于真实客服）
-                        robot_service_id = 0
-                        
-                        # 保存自动回复到数据库
-                        logger.info(f"🔄 准备保存机器人消息到数据库...")
-                        auto_chat = Chat(
-                            visitor_id=from_id,
-                            service_id=robot_service_id,  # ✅ 0表示机器人
-                            business_id=business_id,
-                            content=auto_reply,
-                            msg_type=1,
-                            timestamp=int(time.time()),
-                            direction='to_visitor',
-                            state='unread'
-                        )
-                        logger.info(f"  visitor_id={from_id}, service_id={robot_service_id}, business_id={business_id}")
-                        db.session.add(auto_chat)
-                        logger.info(f"  已添加到session...")
+                    # 🔧 修复：移除重复的auto_reply检查（原1477行）
+                    # 延迟一小段时间，模拟人工回复
+                    import time
+                    time.sleep(0.5)
+                    
+                    # 机器人回复使用 service_id=None 来标识（区别于真实客服）
+                    robot_service_id = None
+                    
+                    logger.info(f"🔍 [FAQ诊断] 准备保存机器人消息到数据库...")
+                    
+                    # 保存自动回复到数据库
+                    auto_chat = Chat(
+                        visitor_id=from_id,
+                        service_id=robot_service_id,  # ✅ None表示机器人
+                        business_id=business_id,
+                        content=auto_reply,
+                        msg_type=1,
+                        timestamp=int(time.time()),
+                        direction='to_visitor',
+                        state='unread'
+                    )
+                    logger.info(f"  visitor_id={from_id}, service_id={robot_service_id}, business_id={business_id}")
+                    db.session.add(auto_chat)
+                    logger.info(f"  已添加到session...")
+                    db.session.commit()
+                    logger.info(f"✅ [FAQ诊断] 机器人消息已保存到数据库，ID={auto_chat.cid}")
+                    
+                    # ⚡ 更新Queue的last_message_time（确保统计准确）
+                    if queue:
+                        queue.last_message_time = datetime.now()
                         db.session.commit()
-                        logger.info(f"✅ 机器人消息已保存到数据库，ID={auto_chat.cid}")
-                        
-                        # ⚡ 更新Queue的last_message_time（确保统计准确）
-                        if queue:
-                            queue.last_message_time = datetime.now()
-                            db.session.commit()
-                        
-                        # 发送自动回复给访客
-                        # ⚡ 机器人消息也需要过滤HTML标签
-                        auto_content_preview = strip_html_tags_for_preview(auto_reply)
-                        
-                        auto_message = {
-                            'id': auto_chat.cid,
-                            'from_id': '0',  # 0表示机器人
-                            'from_type': 'robot',
-                            'from_name': '智能助手',
-                            'to_id': str(from_id),
-                            'to_type': 'visitor',
-                            'content': auto_reply,  # 原始内容（包含HTML）
-                            'content_preview': auto_content_preview,  # ⚡ 过滤后的预览内容
-                            'type': 'text',
-                            'timestamp': datetime.now().isoformat(),
-                            'is_read': False
-                        }
-                        
-                        # 发送给访客
-                        # ⚡ 修复：from_id（visitor_id）已包含'visitor_'前缀，避免重复
-                        visitor_room = from_id if from_id.startswith('visitor_') else f'visitor_{from_id}'
-                        emit('receive_message', auto_message, room=visitor_room)
-                        
-                        # ✅ 同时广播到客服工作台
-                        emit('receive_message', auto_message, room='service_room')
-                        
-                        logger.info(f"自动回复发送给访客 {from_id} 和客服工作台: {auto_reply}")
+                    
+                    # 发送自动回复给访客
+                    # ⚡ 机器人消息也需要过滤HTML标签
+                    auto_content_preview = strip_html_tags_for_preview(auto_reply)
+                    
+                    auto_message = {
+                        'id': auto_chat.cid,
+                        'from_id': 'robot',  # robot表示机器人
+                        'from_type': 'robot',
+                        'from_name': '智能助手',
+                        'to_id': str(from_id),
+                        'to_type': 'visitor',
+                        'content': auto_reply,  # 原始内容（包含HTML）
+                        'content_preview': auto_content_preview,  # ⚡ 过滤后的预览内容
+                        'type': 'text',
+                        'timestamp': datetime.now().isoformat(),
+                        'is_read': False
+                    }
+                    
+                    # 发送给访客
+                    # ⚡ 修复：from_id（visitor_id）已包含'visitor_'前缀，避免重复
+                    visitor_room = from_id if from_id.startswith('visitor_') else f'visitor_{from_id}'
+                    
+                    logger.info(f"🔍 [FAQ诊断] 准备发送消息到访客 room={visitor_room}")
+                    emit('receive_message', auto_message, room=visitor_room)
+                    logger.info(f"🔍 [FAQ诊断] 消息已发送到访客")
+                    
+                    # ✅ 同时广播到客服工作台
+                    emit('receive_message', auto_message, room='service_room')
+                    logger.info(f"✅ [FAQ诊断] 自动回复发送完成: {auto_reply[:30]}...")
+                else:
+                    logger.info(f"⚠️ [FAQ诊断] 没有auto_reply，跳过机器人回复")
                     
             except Exception as robot_error:
                 # 自动回复失败不影响正常消息发送
@@ -1622,8 +1704,9 @@ def handle_get_online_users():
         is_visitor_request = False
         
         # 查找当前用户（可能是客服或访客）
+        # ✅ 同时检查service和admin
         for user_key, user_info in online_users.items():
-            if user_info['type'] == 'service':
+            if user_info['type'] in ['service', 'admin']:
                 sids = user_info.get('sids', [])
                 if current_sid in sids:
                     current_service_id = user_info.get('service_id')
@@ -1636,28 +1719,44 @@ def handle_get_online_users():
         
         # 如果是访客请求，只返回在线客服信息（不返回其他访客）
         if is_visitor_request:
-            # 访客可以看到在线客服数量和基本信息（用于判断客服状态）
+            # ✅ 修复多worker同步问题：从数据库查询而不是从online_users内存字典
             visitor_online_services = []
-            seen_service_ids = set()  # ✅ 去重
-            
-            for user_key, user_info in list(online_users.items()):
-                # ✅ 合并 admin 和 service 类型
-                if user_info['type'] in ['service', 'admin']:
-                    has_connection = False
-                    if 'sids' in user_info and len(user_info['sids']) > 0:
-                        has_connection = True
-                    elif 'sid' in user_info and user_info['sid']:
-                        has_connection = True
-                    
-                    if has_connection and user_info.get('service_id'):
-                        service_id_val = user_info['service_id']
-                        # ✅ 去重
-                        if service_id_val not in seen_service_ids:
-                            seen_service_ids.add(service_id_val)
-                            visitor_online_services.append({
-                                'service_id': service_id_val,
-                                'name': user_info.get('name', '客服')  # ✅ 安全访问，提供默认值
-                            })
+            try:
+                # 从数据库查询state='online'的客服（假设business_id=1，实际应从访客信息获取）
+                business_id = 1  # TODO: 应从访客信息中获取business_id
+                online_service_records = Service.query.filter_by(
+                    business_id=business_id,
+                    state='online'
+                ).all()
+                
+                for service in online_service_records:
+                    visitor_online_services.append({
+                        'service_id': service.service_id,
+                        'name': service.nick_name
+                    })
+                
+                logger.info(f"📊 访客请求在线用户列表：{len(visitor_online_services)}个在线客服 (从数据库查询)")
+            except Exception as e:
+                logger.error(f"查询在线客服失败: {e}")
+                # 如果数据库查询失败，降级使用online_users（保持兼容性）
+                seen_service_ids = set()
+                for user_key, user_info in list(online_users.items()):
+                    if user_info['type'] in ['service', 'admin']:
+                        has_connection = False
+                        if 'sids' in user_info and len(user_info['sids']) > 0:
+                            has_connection = True
+                        elif 'sid' in user_info and user_info['sid']:
+                            has_connection = True
+                        
+                        if has_connection and user_info.get('service_id'):
+                            service_id_val = user_info['service_id']
+                            if service_id_val not in seen_service_ids:
+                                seen_service_ids.add(service_id_val)
+                                visitor_online_services.append({
+                                    'service_id': service_id_val,
+                                    'name': user_info.get('name', '客服')
+                                })
+                logger.warning(f"⚠️ 数据库查询失败，降级使用online_users，客服数：{len(visitor_online_services)}个")
             
             emit('online_users_list', {
                 'services': visitor_online_services,
@@ -1665,7 +1764,6 @@ def handle_get_online_users():
                 'total_services': len(visitor_online_services),
                 'total_visitors': 0
             })
-            logger.info(f"📊 访客请求在线用户列表：{len(visitor_online_services)}个在线客服")
             return
         
         # 查询当前客服是否是管理员
@@ -2077,8 +2175,9 @@ def notify_new_visitor_queued(business_id, visitor_id, priority, position):
             priority_text = 'VIP'
         
         # 通知所有在线客服
+        # ✅ 同时通知service和admin
         for user_key, user_info in online_users.items():
-            if user_info['type'] == 'service':
+            if user_info['type'] in ['service', 'admin']:
                 socketio.emit('new_visitor_queued', {
                     'visitor_id': visitor_id,
                     'visitor_name': visitor.visitor_name,
@@ -2103,8 +2202,9 @@ def broadcast_queue_update(business_id):
         waiting_list = qs.get_waiting_list(business_id, limit=100)
         
         # 广播给所有在线客服
+        # ✅ 同时广播给service和admin
         for user_key, user_info in online_users.items():
-            if user_info['type'] == 'service':
+            if user_info['type'] in ['service', 'admin']:
                 socketio.emit('queue_update', {
                     'stats': stats,
                     'waiting_count': len(waiting_list),
@@ -2231,6 +2331,20 @@ def handle_admin_join(data):
             }
         
         logger.info(f"✅ 管理员加入: {service_name} ({service_id}), SID: {sid}")
+        
+        # ✅ 修复：更新数据库中的在线状态（与service_join保持一致）
+        try:
+            service.state = 'online'
+            db.session.commit()
+            logger.info(f"✅ 管理员{service_id}状态更新为 online")
+            
+            # ✅ 管理员上线时，自动同步接待数（确保数据准确）
+            from mod.mysql.ModuleClass.ServiceWorkloadManager import workload_manager
+            sync_result = workload_manager.sync_workload(service_id, "管理员上线自动同步")
+            if sync_result['success']:
+                logger.info(f"📊 管理员{service_id}上线，接待数已同步: {sync_result['current_count']}")
+        except Exception as e:
+            logger.error(f"更新管理员在线状态失败: {e}")
         
         # 发送加入成功消息
         emit('admin_join_success', {

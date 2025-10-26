@@ -52,7 +52,7 @@ URL_MAPPING = {
     '/service/index': "{{ url_for('service_panel.index') }}",
     
     # 认证
-    '/login': "{{ url_for('auth_view.login_page') }}",
+    '/login': "{{ url_for('auth_view.login') }}",
     '/logout': "{{ url_for('auth_view.logout') }}",
     
     # 访客

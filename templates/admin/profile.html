@@ -344,7 +344,7 @@ document.getElementById('passwordForm').addEventListener('submit', async functio
             resetPasswordForm();
             // 3秒后跳转到登录页
             setTimeout(() => {
-                window.location.href = '/login';
+                window.location.href = "{{ url_for('auth_view.login') }}";
             }, 3000);
         } else {
             showMessage('修改失败：' + result.msg, 'error');

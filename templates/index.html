@@ -17,7 +17,7 @@
             <div class="nav-links">
                 <a href="#features">功能特性</a>
                 <a href="#scenarios">使用场景</a>
-                <a href="{{ url_for('auth_view.login_page') }}">管理登录</a>
+                <a href="{{ url_for('auth_view.login') }}">管理登录</a>
             </div>
         </div>
     </nav>
@@ -30,7 +30,7 @@
             <p class="hero-subtitle">消息驱动增长，实时双向通信，让客户服务更简单高效</p>
             <p class="hero-description">基于 Flask + SocketIO + WebSocket 技术栈，为您提供专业、稳定的客服系统</p>
             <div class="hero-buttons">
-                <a href="{{ url_for('auth_view.login_page') }}" class="btn btn-primary">
+                <a href="{{ url_for('auth_view.login') }}" class="btn btn-primary">
                     <span>开启免费试用</span>
                     <svg class="btn-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M8 0L10.5 5L16 6L12 10L13 16L8 13L3 16L4 10L0 6L5.5 5L8 0Z" fill="currentColor"/>
@@ -250,7 +250,7 @@
         <h2>立即开始使用智能客服系统</h2>
         <p>提升客户服务体验，让沟通更简单高效</p>
         <div class="hero-buttons">
-            <a href="{{ url_for('auth_view.login_page') }}" class="btn btn-primary">管理员登录</a>
+            <a href="{{ url_for('auth_view.login') }}" class="btn btn-primary">管理员登录</a>
             <a href="{{ url_for('visitor_view.chat') }}" class="btn btn-secondary">访客体验</a>
         </div>
     </section>
