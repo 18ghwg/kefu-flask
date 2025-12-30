@@ -525,7 +525,7 @@ def get_session_messages_paginated(visitor_id):
         ).order_by(Chat.created_at.asc()).offset(offset).limit(per_page).all()
         
         # 优化：一次性获取所有需要的客服信息
-        service_ids = list(set([msg.service_id for msg in messages if msg.service_id > 0]))
+        service_ids = list(set([msg.service_id for msg in messages if msg.service_id is not None and msg.service_id > 0]))
         services = {}
         if service_ids:
             service_list = Service.query.filter(Service.service_id.in_(service_ids)).all()
@@ -535,7 +535,7 @@ def get_session_messages_paginated(visitor_id):
         message_list = []
         for msg in messages:
             # 从预加载的字典中获取客服名称
-            service_name = services.get(msg.service_id, '机器人') if msg.service_id > 0 else '机器人'
+            service_name = services.get(msg.service_id, '机器人') if msg.service_id is not None and msg.service_id > 0 else '机器人'
             
             # 判断消息类型
             msg_type = 'text'

@@ -6,7 +6,7 @@ Flask-Login==0.6.2
 Flask-CORS==4.0.0
 Flask-SocketIO==5.3.4
 Flask-WTF==1.2.1
-SQLAlchemy==1.3.24
+SQLAlchemy==1.4.53
 alembic==1.8.1
 PyMySQL==1.1.0
 redis==4.6.0
