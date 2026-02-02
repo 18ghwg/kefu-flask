@@ -6,6 +6,38 @@
             <span class="separator">|</span>
             <span>版本 v1.0.0</span>
         </div>
+        <div class="footer-center">
+            <div class="system-monitor">
+                <div class="monitor-item" title="程序内存占用">
+                    <i class="fas fa-memory"></i>
+                    <span id="processMemory">--</span>
+                    <div class="mini-progress">
+                        <div class="mini-progress-bar" id="processMemoryBar"></div>
+                    </div>
+                </div>
+                <div class="monitor-item" title="系统内存">
+                    <i class="fas fa-server"></i>
+                    <span id="systemMemory">--</span>
+                    <div class="mini-progress">
+                        <div class="mini-progress-bar" id="systemMemoryBar"></div>
+                    </div>
+                </div>
+                <div class="monitor-item" title="CPU使用率">
+                    <i class="fas fa-microchip"></i>
+                    <span id="cpuUsage">--</span>
+                    <div class="mini-progress">
+                        <div class="mini-progress-bar" id="cpuBar"></div>
+                    </div>
+                </div>
+                <div class="monitor-item" title="数据库连接">
+                    <i class="fas fa-database"></i>
+                    <span id="dbConnections">--</span>
+                    <div class="mini-progress">
+                        <div class="mini-progress-bar" id="dbBar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="footer-right">
             <span>技术支持</span>
             <span class="separator">|</span>
@@ -21,7 +53,7 @@
         bottom: 0;
         left: 0;
         right: 0;
-        height: 40px;
+        height: 50px;
         background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover-color) 100%);
         color: white;
         display: flex;
@@ -32,20 +64,27 @@
     }
 
     .footer-content {
-        max-width: 1400px;
+        max-width: 1600px;
         width: 100%;
         padding: 0 20px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 13px;
+        font-size: 12px;
+        gap: 20px;
     }
 
     .footer-left,
+    .footer-center,
     .footer-right {
         display: flex;
         align-items: center;
         gap: 8px;
+    }
+
+    .footer-center {
+        flex: 1;
+        justify-content: center;
     }
 
     .footer-left .separator,
@@ -58,18 +97,112 @@
         font-variant-numeric: tabular-nums;
     }
 
+    /* 系统监控样式 */
+    .system-monitor {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .monitor-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        cursor: help;
+        transition: all 0.3s;
+    }
+
+    .monitor-item:hover {
+        transform: translateY(-1px);
+    }
+
+    .monitor-item i {
+        font-size: 13px;
+        opacity: 0.9;
+    }
+
+    .monitor-item span {
+        font-weight: 500;
+        min-width: 60px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* 迷你进度条 */
+    .mini-progress {
+        width: 40px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+        overflow: hidden;
+    }
+
+    .mini-progress-bar {
+        height: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 2px;
+        transition: width 0.5s ease, background-color 0.3s;
+    }
+
+    .mini-progress-bar.warning {
+        background: #fbbf24;
+    }
+
+    .mini-progress-bar.danger {
+        background: #ef4444;
+    }
+
     /* 响应式：小屏幕隐藏部分信息 */
+    @media (max-width: 1200px) {
+        .system-monitor {
+            gap: 12px;
+        }
+        
+        .monitor-item span {
+            min-width: 50px;
+        }
+        
+        .mini-progress {
+            width: 30px;
+        }
+    }
+
     @media (max-width: 768px) {
         .global-footer {
-            height: 35px;
+            height: 40px;
         }
 
         .footer-content {
-            font-size: 11px;
+            font-size: 10px;
+            gap: 10px;
+        }
+
+        .footer-left span:first-child {
+            display: none;
         }
 
         .footer-right span:first-child,
         .footer-right .separator:first-of-type {
+            display: none;
+        }
+
+        .system-monitor {
+            gap: 8px;
+        }
+
+        .monitor-item {
+            font-size: 10px;
+        }
+
+        .monitor-item i {
+            font-size: 11px;
+        }
+
+        .monitor-item span {
+            min-width: 40px;
+        }
+
+        .mini-progress {
             display: none;
         }
     }
@@ -95,15 +228,100 @@
             }
         }
 
-        // 初始化并每秒更新时间
+        // 格式化字节大小
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // 更新进度条颜色
+        function updateProgressBar(element, percent) {
+            element.style.width = percent + '%';
+            element.classList.remove('warning', 'danger');
+            if (percent >= 90) {
+                element.classList.add('danger');
+            } else if (percent >= 70) {
+                element.classList.add('warning');
+            }
+        }
+
+        // 更新系统监控信息
+        function updateSystemMonitor() {
+            fetch('/api/admin/system-monitor', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.code === 0) {
+                    const data = result.data;
+                    
+                    // 更新进程内存
+                    const processMemoryMB = data.memory.process / (1024 * 1024);
+                    const processMemoryPercent = (data.memory.process / data.memory.total) * 100;
+                    document.getElementById('processMemory').textContent = 
+                        formatBytes(data.memory.process);
+                    updateProgressBar(
+                        document.getElementById('processMemoryBar'),
+                        processMemoryPercent
+                    );
+                    
+                    // 更新系统内存
+                    document.getElementById('systemMemory').textContent = 
+                        data.memory.percent.toFixed(1) + '%';
+                    updateProgressBar(
+                        document.getElementById('systemMemoryBar'),
+                        data.memory.percent
+                    );
+                    
+                    // 更新CPU
+                    document.getElementById('cpuUsage').textContent = 
+                        data.cpu.percent.toFixed(1) + '% (' + data.cpu.count + '核)';
+                    updateProgressBar(
+                        document.getElementById('cpuBar'),
+                        data.cpu.percent
+                    );
+                    
+                    // 更新数据库连接
+                    const dbPercent = data.db_connections.percent || 0;
+                    document.getElementById('dbConnections').textContent = 
+                        data.db_connections.current + '/' + data.db_connections.max;
+                    updateProgressBar(
+                        document.getElementById('dbBar'),
+                        dbPercent
+                    );
+                }
+            })
+            .catch(error => {
+                console.error('获取系统监控信息失败:', error);
+            });
+        }
+
+        // 初始化
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
+                // 更新时间
                 updateFooterTime();
                 setInterval(updateFooterTime, 1000);
+                
+                // 更新系统监控（每3秒）
+                updateSystemMonitor();
+                setInterval(updateSystemMonitor, 3000);
             });
         } else {
+            // 更新时间
             updateFooterTime();
             setInterval(updateFooterTime, 1000);
+            
+            // 更新系统监控（每3秒）
+            updateSystemMonitor();
+            setInterval(updateSystemMonitor, 3000);
         }
     })();
 </script>

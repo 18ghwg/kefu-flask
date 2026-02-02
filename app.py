@@ -162,6 +162,15 @@ def after_request(response):
     return response
 
 
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    """
+    请求结束后清理数据库会话
+    ✅ 关键修复：确保每个请求后都释放数据库连接
+    """
+    db.session.remove()
+
+
 # ========== 数据库连接池预热 ==========
 def warmup_db_pool():
     """

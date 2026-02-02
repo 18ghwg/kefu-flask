@@ -29,14 +29,17 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 # 数据库连接池优化（解决长时间不请求后延迟问题）
 SQLALCHEMY_ENGINE_OPTIONS = {
     "pool_pre_ping": True,        # 连接前测试可用性
-    "pool_recycle": 300,          # 5分钟回收连接
-    "pool_size": 15,              # 连接池大小
-    "max_overflow": 30,           # 最大溢出连接数
-    "pool_timeout": 10,           # 获取连接超时
+    "pool_recycle": 280,          # 4分40秒回收连接（避免MySQL wait_timeout=300秒）
+    "pool_size": 25,              # ✅ 增加连接池大小（支持更多并发）
+    "max_overflow": 50,           # ✅ 增加最大溢出连接数（高峰期支持）
+    "pool_timeout": 60,           # ✅ 增加获取连接超时（避免快速失败）
+    "echo_pool": False,           # 不打印连接池日志（生产环境）
+    "pool_reset_on_return": "rollback",  # ✅ 连接归还时自动回滚未提交事务
     "connect_args": {
-        "connect_timeout": 5,     # MySQL 连接超时
-        "read_timeout": 10,       # 读取超时
-        "write_timeout": 10,      # 写入超时
+        "connect_timeout": 15,    # ✅ 增加MySQL连接超时
+        "read_timeout": 60,       # ✅ 增加读取超时（支持慢查询）
+        "write_timeout": 60,      # ✅ 增加写入超时
+        "charset": "utf8mb4"      # ✅ 明确字符集
     }
 }
 

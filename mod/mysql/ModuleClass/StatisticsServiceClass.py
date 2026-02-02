@@ -9,6 +9,9 @@ from sqlalchemy import func, distinct, and_
 from exts import db, redis_client
 from mod.mysql.models import Visitor, Queue, Chat, Service, Comment
 import json
+import log
+
+logger = log.get_logger(__name__)
 
 
 class StatisticsService:
@@ -75,12 +78,29 @@ class StatisticsService:
             Service.user_name != 'robot'  # ⚡ 排除机器人
         ).count()
         
-        # 4. 接入总量（去重访客）
-        total_visitors = db.session.query(
-            func.count(distinct(Chat.visitor_id))
-        ).filter(
-            Chat.business_id == self.business_id
-        ).scalar() or 0
+        # 4. 接入总量（去重访客）- 多级优化策略
+        # 优先级1: 尝试使用汇总表（最快）
+        # 优先级2: 使用限制时间范围的查询（较快）
+        try:
+            # 尝试使用汇总表（如果存在）
+            from sqlalchemy import text
+            total_visitors = db.session.execute(text("""
+                SELECT SUM(visitor_count) 
+                FROM visitor_stats_cache 
+                WHERE business_id = :business_id 
+                AND stat_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            """), {"business_id": self.business_id}).scalar() or 0
+            logger.debug(f"✅ 使用汇总表查询访客数: {total_visitors}")
+        except:
+            # 汇总表不存在，使用优化后的查询
+            thirty_days_ago = int((datetime.now() - timedelta(days=30)).timestamp())
+            total_visitors = db.session.query(
+                func.count(distinct(Chat.visitor_id))
+            ).filter(
+                Chat.business_id == self.business_id,
+                Chat.timestamp >= thirty_days_ago  # ✅ 限制时间范围
+            ).scalar() or 0
+            logger.debug(f"✅ 使用时间范围查询访客数: {total_visitors}")
         
         result = {
             'waiting_count': waiting_count,
@@ -89,9 +109,9 @@ class StatisticsService:
             'total_visitors': total_visitors
         }
         
-        # 缓存10秒（缩短缓存时间以获取更实时的数据）
+        # ✅ 增加缓存时间到300秒（5分钟），大幅减少查询频率
         if redis_client:
-            redis_client.setex(cache_key, 10, json.dumps(result))
+            redis_client.setex(cache_key, 300, json.dumps(result))
         
         return result
     

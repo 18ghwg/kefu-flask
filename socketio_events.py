@@ -105,7 +105,7 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    """客户端断开连接事件（支持多连接）"""
+    """客户端断开连接事件（支持多连接）- 优化版：防止连接超时"""
     sid = request.sid
     
     # 查找并移除离线用户
@@ -152,17 +152,20 @@ def handle_disconnect():
                                     broadcast_statistics_update(business_id)
                         except Exception as e:
                             logger.error(f"更新客服离线状态失败: {e}")
+                            db.session.rollback()  # ✅ 回滚失败的事务
+                        finally:
+                            db.session.remove()  # ✅ 关键：释放数据库连接
                     
                     # 如果是访客，关闭会话并减少对应客服的接待计数
                     elif user_type == 'visitor':
                         try:
                             visitor_id = info.get('visitor_id')
                             if visitor_id:
-                                # 查找访客的队列
+                                # ✅ 使用with_for_update避免并发问题，设置超时
                                 queue = Queue.query.filter_by(
                                     visitor_id=visitor_id,
                                     state='normal'
-                                ).first()
+                                ).with_for_update(nowait=False).first()
                                 
                                 if queue:
                                     # 1. 关闭会话（访客离线）
@@ -194,8 +197,11 @@ def handle_disconnect():
                                         
                         except Exception as e:
                             logger.error(f"访客离线时处理会话失败: {e}")
+                            db.session.rollback()  # ✅ 回滚失败的事务
                             import traceback
                             logger.error(traceback.format_exc())
+                        finally:
+                            db.session.remove()  # ✅ 关键：释放数据库连接
                 break
         # 兼容旧格式（单个sid）
         elif info.get('sid') == sid:
@@ -443,8 +449,12 @@ def handle_visitor_join(data):
                     
             except Exception as e:
                 logger.error(f"❌ 异步保存访客信息失败: {visitor_id}, 错误: {e}")
+                db.session.rollback()
                 import traceback
                 logger.error(traceback.format_exc())
+            finally:
+                # ✅ 关键修复：清理数据库会话，释放连接
+                db.session.remove()
         
         # ⚠️ 已禁用在线IP查询（性能优化）
         # 仅保留基本的本地IP识别，不调用外部API
@@ -467,6 +477,9 @@ def handle_visitor_join(data):
                 
             except Exception as e:
                 logger.error(f"❌ IP基本识别失败: {visitor_id}, {real_ip}, 错误: {e}")
+            finally:
+                # ✅ 确保不持有数据库连接（虽然这个函数不使用数据库，但保持一致性）
+                pass
         
         # ⚡ 启动后台线程（数据库保存 + IP解析，不等待完成）
         Thread(target=async_save_visitor, daemon=True).start()
@@ -1932,22 +1945,26 @@ def handle_end_chat(data):
                     import time
                     time.sleep(1)
                     
-                    # 获取客服信息
-                    service = Service.query.get(service_id)
-                    service_name = service.nick_name if service else '客服'
-                    
-                    # 向访客推送评价请求
-                    socketio.emit('request_comment', {
-                        'queue_id': queue.qid,
-                        'service_id': service_id,
-                        'service_name': service_name,
-                        'message': f'请为 {service_name} 的服务进行评价'
-                    }, room=f'visitor_{visitor_id}')
-                    
-                    logger.info(f"✅ 已向访客 {visitor_id} 推送评价请求")
+                    with app.app_context():
+                        # 获取客服信息
+                        service = Service.query.get(service_id)
+                        service_name = service.nick_name if service else '客服'
+                        
+                        # 向访客推送评价请求
+                        socketio.emit('request_comment', {
+                            'queue_id': queue.qid,
+                            'service_id': service_id,
+                            'service_name': service_name,
+                            'message': f'请为 {service_name} 的服务进行评价'
+                        }, room=f'visitor_{visitor_id}')
+                        
+                        logger.info(f"✅ 已向访客 {visitor_id} 推送评价请求")
                     
                 except Exception as e:
                     logger.error(f"推送评价请求失败: {e}")
+                finally:
+                    # ✅ 关键修复：清理数据库会话，释放连接
+                    db.session.remove()
             
             # 启动后台线程推送评价
             from threading import Thread

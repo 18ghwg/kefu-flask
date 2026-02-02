@@ -268,8 +268,8 @@ body {
     margin-top: 60px;
     margin-left: 250px;
     padding: 20px;
-    min-height: calc(100vh - 60px - 40px); /* 减去顶部导航60px和底部栏40px */
-    padding-bottom: 50px; /* 为底部栏留出空间 */
+    min-height: calc(100vh - 60px - 50px); /* 减去顶部导航60px和底部栏50px */
+    padding-bottom: 60px; /* 为底部栏留出空间 */
     transition: all 0.3s;
 }
 
@@ -350,7 +350,7 @@ body {
     .main-content {
         margin-left: 0;
         padding: 15px;
-        min-height: calc(100vh - 60px - 35px); /* 小屏幕底部栏35px */
+        min-height: calc(100vh - 60px - 40px); /* 小屏幕底部栏40px */
     }
     
     .navbar-brand span {

@@ -886,6 +886,69 @@ def get_realtime_events():
         return jsonify({'code': -1, 'msg': str(e)}), 500
 
 
+@admin_bp.route('/system-monitor', methods=['GET'])
+@login_required
+def get_system_monitor():
+    """获取系统监控信息"""
+    try:
+        import psutil
+        from exts import db
+        
+        # 获取内存信息
+        memory = psutil.virtual_memory()
+        process = psutil.Process()
+        process_memory = process.memory_info()
+        
+        # 获取CPU信息
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        cpu_count = psutil.cpu_count()
+        
+        # 获取数据库连接数
+        try:
+            # 获取当前活跃连接数
+            result = db.session.execute(db.text("SHOW STATUS LIKE 'Threads_connected'"))
+            threads_connected = int(result.fetchone()[1])
+            
+            # 获取最大连接数
+            result = db.session.execute(db.text("SHOW VARIABLES LIKE 'max_connections'"))
+            max_connections = int(result.fetchone()[1])
+            
+            db_connections = {
+                'current': threads_connected,
+                'max': max_connections,
+                'percent': round((threads_connected / max_connections) * 100, 1)
+            }
+        except Exception as e:
+            logger.error(f'获取数据库连接数失败: {e}')
+            db_connections = {
+                'current': 0,
+                'max': 0,
+                'percent': 0
+            }
+        
+        return jsonify({
+            'code': 0,
+            'msg': 'success',
+            'data': {
+                'memory': {
+                    'total': memory.total,  # 总内存（字节）
+                    'used': memory.used,  # 已用内存
+                    'percent': memory.percent,  # 使用百分比
+                    'process': process_memory.rss  # 当前进程占用内存
+                },
+                'cpu': {
+                    'percent': cpu_percent,  # CPU使用率
+                    'count': cpu_count  # CPU核心数
+                },
+                'db_connections': db_connections
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f'获取系统监控信息失败: {e}')
+        return jsonify({'code': -1, 'msg': str(e)}), 500
+
+
 @admin_bp.route('/statistics/region-stats', methods=['GET'])
 @login_required
 def get_region_statistics():
